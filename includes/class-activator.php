@@ -38,6 +38,19 @@ class Ocean_Shiatsu_Booking_Activator {
 			KEY admin_token (admin_token)
 		) $charset_collate;";
 
+		// Logs Table
+		$table_name_logs = $wpdb->prefix . 'osb_logs';
+		$sql_logs = "CREATE TABLE $table_name_logs (
+			id mediumint(9) NOT NULL AUTO_INCREMENT,
+			created_at datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
+			level varchar(10) NOT NULL,
+			source varchar(20) NOT NULL,
+			message text NOT NULL,
+			context longtext DEFAULT NULL,
+			PRIMARY KEY  (id),
+			KEY created_at (created_at)
+		) $charset_collate;";
+
 		// Services Table
 		$table_name_services = $wpdb->prefix . 'osb_services';
 		$sql_services = "CREATE TABLE $table_name_services (
@@ -62,6 +75,7 @@ class Ocean_Shiatsu_Booking_Activator {
 
 		require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
 		dbDelta( $sql_appointments );
+		dbDelta( $sql_logs );
 		dbDelta( $sql_services );
 		dbDelta( $sql_settings );
 

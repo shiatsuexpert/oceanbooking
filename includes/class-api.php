@@ -125,9 +125,14 @@ class Ocean_Shiatsu_Booking_API {
 	public function create_booking( $request ) {
 		// Rate Limit Check
 		$rate_limit = $this->check_rate_limit();
-		if ( is_wp_error( $rate_limit ) ) return $rate_limit;
+		if ( is_wp_error( $rate_limit ) ) {
+			Ocean_Shiatsu_Booking_Logger::log( 'WARNING', 'API', 'Rate Limit Exceeded', ['ip' => $_SERVER['REMOTE_ADDR']] );
+			return $rate_limit;
+		}
 
 		$params = $request->get_json_params();
+		Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'API', 'Create Booking Request', $params );
+
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'osb_appointments';
 
@@ -170,6 +175,7 @@ class Ocean_Shiatsu_Booking_API {
 
 		if ( $overlap ) {
 			$wpdb->query( "UNLOCK TABLES" );
+			Ocean_Shiatsu_Booking_Logger::log( 'ERROR', 'API', 'Double Booking Prevented', ['start' => $start_time, 'end' => $end_time] );
 			return new WP_Error( 'conflict', 'This slot is already booked.', array( 'status' => 409 ) );
 		}
 

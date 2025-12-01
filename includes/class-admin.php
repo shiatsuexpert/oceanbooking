@@ -39,6 +39,110 @@ class Ocean_Shiatsu_Booking_Admin {
 			'osb-settings', 
 			array( $this, 'display_settings_page' ) 
 		);
+
+		add_submenu_page( 
+			'ocean-shiatsu-booking', 
+			'Logs', 
+			'Logs', 
+			'manage_options', 
+			'osb-logs', 
+			array( $this, 'display_logs_page' ) 
+		);
+	}
+
+	public function display_logs_page() {
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'osb_logs';
+
+		// Handle Clear Logs
+		if ( isset( $_POST['osb_clear_logs'] ) ) {
+			check_admin_referer( 'osb_clear_logs_verify' );
+			Ocean_Shiatsu_Booking_Logger::clear_logs();
+			echo '<div class="notice notice-success"><p>Logs cleared.</p></div>';
+		}
+
+		// Pagination
+		$per_page = 50;
+		$page = isset( $_GET['paged'] ) ? max( 1, intval( $_GET['paged'] ) ) : 1;
+		$offset = ( $page - 1 ) * $per_page;
+
+		$total = $wpdb->get_var( "SELECT COUNT(*) FROM $table_name" );
+		$logs = $wpdb->get_results( "SELECT * FROM $table_name ORDER BY created_at DESC LIMIT $per_page OFFSET $offset" );
+		$total_pages = ceil( $total / $per_page );
+
+		?>
+		<div class="wrap">
+			<h1 class="wp-heading-inline">System Logs</h1>
+			<form method="post" style="display:inline-block; margin-left: 10px;">
+				<?php wp_nonce_field( 'osb_clear_logs_verify', 'osb_clear_logs' ); ?>
+				<button type="submit" class="button button-secondary" onclick="return confirm('Clear all logs?')">Clear Logs</button>
+			</form>
+			<hr class="wp-header-end">
+
+			<table class="wp-list-table widefat fixed striped">
+				<thead>
+					<tr>
+						<th style="width: 160px;">Date</th>
+						<th style="width: 80px;">Level</th>
+						<th style="width: 100px;">Source</th>
+						<th>Message</th>
+						<th>Context</th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php if ( empty( $logs ) ) : ?>
+						<tr><td colspan="5">No logs found.</td></tr>
+					<?php else : ?>
+						<?php foreach ( $logs as $log ) : ?>
+							<tr>
+								<td><?php echo $log->created_at; ?></td>
+								<td>
+									<span class="badge badge-<?php echo strtolower( $log->level ); ?>" style="
+										padding: 2px 6px; border-radius: 3px; font-weight: bold;
+										<?php 
+										if($log->level=='ERROR') echo 'background:#dc3232; color:#fff;';
+										elseif($log->level=='WARNING') echo 'background:#ffb900; color:#000;';
+										elseif($log->level=='DEBUG') echo 'background:#f0f0f1; color:#000;';
+										else echo 'background:#00a0d2; color:#fff;';
+										?>
+									"><?php echo $log->level; ?></span>
+								</td>
+								<td><?php echo $log->source; ?></td>
+								<td><?php echo esc_html( $log->message ); ?></td>
+								<td>
+									<?php if ( $log->context ) : ?>
+										<details>
+											<summary>View Data</summary>
+											<pre style="font-size: 10px; overflow: auto; max-height: 100px;"><?php echo esc_html( print_r( json_decode( $log->context, true ), true ) ); ?></pre>
+										</details>
+									<?php endif; ?>
+								</td>
+							</tr>
+						<?php endforeach; ?>
+					<?php endif; ?>
+				</tbody>
+			</table>
+
+			<?php if ( $total_pages > 1 ) : ?>
+				<div class="tablenav bottom">
+					<div class="tablenav-pages">
+						<span class="pagination-links">
+							<?php
+							echo paginate_links( array(
+								'base' => add_query_arg( 'paged', '%#%' ),
+								'format' => '',
+								'prev_text' => '&laquo;',
+								'next_text' => '&raquo;',
+								'total' => $total_pages,
+								'current' => $page
+							) );
+							?>
+						</span>
+					</div>
+				</div>
+			<?php endif; ?>
+		</div>
+		<?php
 	}
 
 	public function display_services_page() {
@@ -263,6 +367,7 @@ class Ocean_Shiatsu_Booking_Admin {
 	private function handle_gcal_sync() {
 		global $wpdb;
 		$gcal = new Ocean_Shiatsu_Booking_Google_Calendar();
+		Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Admin', 'Manual Sync Started' );
 		
 		$start = date( 'Y-m-d' );
 		$end = date( 'Y-m-d', strtotime( '+30 days' ) );
@@ -316,6 +421,7 @@ class Ocean_Shiatsu_Booking_Admin {
 		}
 
 		echo "<div class='notice notice-success'><p>Sync complete. Imported $count_new new, updated $count_updated events.</p></div>";
+		Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Admin', 'Sync Complete', ['new' => $count_new, 'updated' => $count_updated] );
 	}
 
 	private function handle_accept_reschedule() {
@@ -453,36 +559,36 @@ class Ocean_Shiatsu_Booking_Admin {
 	}
 
 	public function display_settings_page() {
-		// Save logic
+		// Handle Settings Save
 		if ( isset( $_POST['osb_save_settings'] ) ) {
 			check_admin_referer( 'osb_save_settings_verify' );
-			
-			// Save Anchor Times
-			if ( isset( $_POST['anchor_times'] ) ) {
-				$anchors = array_map( 'trim', explode( ',', $_POST['anchor_times'] ) );
-				$this->update_setting( 'anchor_times', json_encode( $anchors ) );
-			}
-
-			// Save Working Hours
-			if ( isset( $_POST['working_start'] ) && isset( $_POST['working_end'] ) ) {
-				$this->update_setting( 'working_start', sanitize_text_field( $_POST['working_start'] ) );
-				$this->update_setting( 'working_end', sanitize_text_field( $_POST['working_end'] ) );
-			}
-			
-			// Save Working Days
-			if ( isset( $_POST['working_days'] ) ) {
-				$this->update_setting( 'working_days', json_encode( $_POST['working_days'] ) );
-			} else {
-				$this->update_setting( 'working_days', json_encode( [] ) ); // None selected
-			}
-
-			// Save GCal Credentials (JSON)
-			if ( isset( $_POST['gcal_credentials'] ) ) {
-				$this->update_setting( 'gcal_credentials', stripslashes( $_POST['gcal_credentials'] ) );
-			}
-
+			$this->save_settings();
+			Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Admin', 'Settings Saved' );
 			echo '<div class="notice notice-success"><p>Settings saved.</p></div>';
 		}
+
+		// Handle Disconnect
+		if ( isset( $_POST['osb_disconnect'] ) ) {
+			check_admin_referer( 'osb_disconnect_verify' );
+			$this->handle_disconnect();
+			Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Admin', 'GCal Disconnected' );
+			echo '<div class="notice notice-success"><p>Google Calendar disconnected.</p></div>';
+		}
+
+		// Handle Calendar Selection Save
+		if ( isset( $_POST['osb_save_calendars'] ) ) {
+			check_admin_referer( 'osb_save_calendars_verify' );
+			$selected_calendars = isset( $_POST['gcal_calendars'] ) ? array_map( 'sanitize_text_field', $_POST['gcal_calendars'] ) : [];
+			$this->update_setting( 'gcal_selected_calendars', json_encode( $selected_calendars ) );
+			Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Admin', 'Calendars Selected', $selected_calendars );
+			echo '<div class="notice notice-success"><p>Calendar selection saved.</p></div>';
+		}
+
+		// Handle OAuth Callback
+		if ( isset( $_GET['action'] ) && $_GET['action'] === 'oauth_callback' && isset( $_GET['code'] ) ) {
+			Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Admin', 'OAuth Callback Received' );
+			$this->handle_oauth_callback( $_GET['code'] );
+		}	
 
 		$anchor_times = json_decode( $this->get_setting( 'anchor_times' ), true );
 		$working_start = $this->get_setting( 'working_start' ) ?: '09:00';
@@ -522,17 +628,56 @@ class Ocean_Shiatsu_Booking_Admin {
 							<p class="description">Comma separated times (e.g. 09:00, 14:00). These are the preferred start times for the first booking of the day.</p>
 						</td>
 					</tr>
-					<tr valign="top">
-						<th scope="row">Google Calendar Credentials (JSON)</th>
-						<td>
-							<textarea name="gcal_credentials" rows="10" cols="50" class="large-text code"><?php echo esc_textarea( $gcal_creds ); ?></textarea>
-							<p class="description">Paste the content of your Google Cloud Service Account JSON key file here.</p>
-						</td>
-					</tr>
 				</table>
 				
 				<?php submit_button( 'Save Settings' ); ?>
 			</form>
+
+			<?php
+			// Google Calendar Settings
+			echo '<h2>Google Calendar Integration (OAuth 2.0)</h2>';
+			echo '<form method="post" action="">';
+			wp_nonce_field( 'osb_save_settings_verify', 'osb_save_settings' );
+
+			$client_id = $this->get_setting( 'gcal_client_id' );
+			$client_secret = $this->get_setting( 'gcal_client_secret' );
+			$access_token = $this->get_setting( 'gcal_access_token' );
+			
+			echo '<table class="form-table">';
+			echo '<tr><th scope="row"><label for="gcal_client_id">Client ID</label></th>';
+			echo '<td><input type="text" name="gcal_client_id" id="gcal_client_id" value="' . esc_attr( $client_id ) . '" class="regular-text"></td></tr>';
+			
+			echo '<tr><th scope="row"><label for="gcal_client_secret">Client Secret</label></th>';
+			echo '<td><input type="password" name="gcal_client_secret" id="gcal_client_secret" value="' . esc_attr( $client_secret ) . '" class="regular-text"></td></tr>';
+			
+			echo '<tr><th scope="row">Redirect URI</th>';
+			echo '<td><code>' . admin_url( 'admin.php?page=ocean-shiatsu-booking&action=oauth_callback' ) . '</code><br><small>Add this to your Google Cloud Console "Authorized redirect URIs".</small></td></tr>';
+			
+			echo '</table>';
+			echo '<p class="submit"><input type="submit" name="submit" id="submit" class="button button-primary" value="Save Settings"></p>';
+			echo '</form>';
+
+			// Connect / Disconnect
+			if ( $client_id && $client_secret ) {
+				if ( $access_token ) {
+					echo '<div class="notice notice-success inline"><p>Status: <strong>Connected</strong></p></div>';
+					echo '<form method="post" action="">';
+					wp_nonce_field( 'osb_disconnect_verify', 'osb_disconnect' );
+					echo '<input type="submit" class="button" value="Disconnect Google Calendar">';
+					echo '</form>';
+					
+					// Calendar Picker will go here
+					$this->render_calendar_picker();
+					echo '<p class="description"><strong>Note:</strong> New bookings are always saved to your <strong>Primary</strong> calendar. Check other calendars to block their busy times from your availability.</p>';
+
+				} else {
+					$auth_url = $this->get_oauth_url( $client_id );
+					echo '<a href="' . esc_url( $auth_url ) . '" class="button button-primary">Connect Google Calendar</a>';
+				}
+			} else {
+				echo '<p><em>Enter Client ID and Secret to connect.</em></p>';
+			}
+			?>
 		</div>
 		<?php
 	}

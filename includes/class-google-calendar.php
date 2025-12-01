@@ -4,7 +4,6 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 
 	private $client;
 	private $service;
-	private $calendar_id = 'primary';
 	private $is_connected = false;
 
 	public function __construct() {
@@ -14,24 +13,75 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 	private function init_client() {
 		global $wpdb;
 		$table = $wpdb->prefix . 'osb_settings';
-		$json_key = $wpdb->get_var( "SELECT setting_value FROM $table WHERE setting_key = 'gcal_credentials'" );
+		
+		$client_id = $wpdb->get_var( "SELECT setting_value FROM $table WHERE setting_key = 'gcal_client_id'" );
+		$client_secret = $wpdb->get_var( "SELECT setting_value FROM $table WHERE setting_key = 'gcal_client_secret'" );
+		$access_token = $wpdb->get_var( "SELECT setting_value FROM $table WHERE setting_key = 'gcal_access_token'" );
+		$refresh_token = $wpdb->get_var( "SELECT setting_value FROM $table WHERE setting_key = 'gcal_refresh_token'" );
 
-		if ( $json_key && class_exists( 'Google_Client' ) ) {
+		if ( $client_id && $client_secret && $access_token && class_exists( 'Google_Client' ) ) {
 			try {
-				$decoded = json_decode( $json_key, true );
-				if ( ! $decoded ) return;
-
 				$this->client = new Google_Client();
-				$this->client->setAuthConfig( $decoded );
-				$this->client->addScope( Google_Service_Calendar::CALENDAR );
-				$this->client->setSubject( $decoded['client_email'] ); // Service Account Email
+				$this->client->setClientId( $client_id );
+				$this->client->setClientSecret( $client_secret );
+				$this->client->setAccessToken( $access_token );
 				
+				// Auto Refresh
+				if ( $this->client->isAccessTokenExpired() ) {
+					if ( $refresh_token ) {
+						$new_token = $this->client->fetchAccessTokenWithRefreshToken( $refresh_token );
+						if ( ! isset( $new_token['error'] ) ) {
+							$this->client->setAccessToken( $new_token );
+							// Update DB
+							$wpdb->update( $table, ['setting_value' => $new_token['access_token']], ['setting_key' => 'gcal_access_token'] );
+							if ( isset( $new_token['refresh_token'] ) ) {
+								$wpdb->update( $table, ['setting_value' => $new_token['refresh_token']], ['setting_key' => 'gcal_refresh_token'] );
+							}
+						} else {
+							error_log( 'OSB GCal Refresh Error: ' . json_encode( $new_token ) );
+							// Token is invalid (revoked?), disconnect locally so user sees "Connect" button
+							$wpdb->update( $table, ['setting_value' => ''], ['setting_key' => 'gcal_access_token'] );
+							$wpdb->update( $table, ['setting_value' => ''], ['setting_key' => 'gcal_refresh_token'] );
+							return;
+						}
+					} else {
+						return; // Expired and no refresh token
+					}
+				}
+
 				$this->service = new Google_Service_Calendar( $this->client );
 				$this->is_connected = true;
 			} catch ( Exception $e ) {
 				error_log( 'OSB GCal Error: ' . $e->getMessage() );
 			}
 		}
+	}
+
+	public function get_calendar_list() {
+		if ( ! $this->is_connected ) return [];
+		try {
+			$list = $this->service->calendarList->listCalendarList();
+			$calendars = [];
+			foreach ( $list->getItems() as $cal ) {
+				$calendars[] = [
+					'id' => $cal->getId(),
+					'summary' => $cal->getSummary(),
+					'primary' => $cal->getPrimary()
+				];
+			}
+			return $calendars;
+		} catch ( Exception $e ) {
+			error_log( 'OSB GCal List Error: ' . $e->getMessage() );
+			return [];
+		}
+	}
+
+	private function get_selected_calendars() {
+		global $wpdb;
+		$table = $wpdb->prefix . 'osb_settings';
+		$json = $wpdb->get_var( "SELECT setting_value FROM $table WHERE setting_key = 'gcal_selected_calendars'" );
+		$selected = json_decode( $json, true );
+		return $selected ?: ['primary']; // Default to primary if nothing selected
 	}
 
 	public function get_events_for_date( $date ) {
@@ -45,34 +95,34 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 
 		$start = $date . 'T00:00:00Z';
 		$end = $date . 'T23:59:59Z';
+		$calendars = $this->get_selected_calendars();
+		$all_events = [];
 
-		try {
-			$optParams = array(
-				'orderBy' => 'startTime',
-				'singleEvents' => true,
-				'timeMin' => $start,
-				'timeMax' => $end,
-			);
-			$results = $this->service->events->listEvents( $this->calendar_id, $optParams );
-			
-			$events = [];
-			foreach ( $results->getItems() as $event ) {
-				$events[] = [
-					'id' => $event->getId(),
-					'start' => $event->start,
-					'end' => $event->end,
-					'summary' => $event->getSummary()
-				];
+		foreach ( $calendars as $cal_id ) {
+			try {
+				$optParams = array(
+					'orderBy' => 'startTime',
+					'singleEvents' => true,
+					'timeMin' => $start,
+					'timeMax' => $end,
+				);
+				$results = $this->service->events->listEvents( $cal_id, $optParams );
+				
+				foreach ( $results->getItems() as $event ) {
+					$all_events[] = [
+						'id' => $event->getId(),
+						'start' => $event->start,
+						'end' => $event->end,
+						'summary' => $event->getSummary()
+					];
+				}
+			} catch ( Exception $e ) {
+				error_log( "OSB GCal Error ($cal_id): " . $e->getMessage() );
 			}
-
-			// Cache for 1 minute (60 seconds) to ensure freshness while preventing spam
-			set_transient( $cache_key, $events, 60 );
-
-			return $events;
-		} catch ( Exception $e ) {
-			error_log( 'OSB GCal List Error: ' . $e->getMessage() );
-			return false; // Return false to indicate error vs empty
 		}
+
+		set_transient( $cache_key, $all_events, 60 );
+		return $all_events;
 	}
 
 	public function get_events_range( $start_date, $end_date ) {
@@ -80,31 +130,38 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 
 		$start = $start_date . 'T00:00:00Z';
 		$end = $end_date . 'T23:59:59Z';
+		$calendars = $this->get_selected_calendars(); // Sync all selected? Or just primary?
+		// Usually we only want to sync PRIMARY events to WP DB for management.
+		// Private events are just for blocking.
+		// Let's sync ALL selected, but maybe mark them?
+		// For now, let's sync all selected.
 
-		try {
-			$optParams = array(
-				'orderBy' => 'startTime',
-				'singleEvents' => true,
-				'timeMin' => $start,
-				'timeMax' => $end,
-				'maxResults' => 250,
-			);
-			$results = $this->service->events->listEvents( $this->calendar_id, $optParams );
-			
-			$events = [];
-			foreach ( $results->getItems() as $event ) {
-				$events[] = [
-					'id' => $event->getId(),
-					'start' => $event->start->dateTime ?: $event->start->date, // Handle all-day events
-					'end' => $event->end->dateTime ?: $event->end->date,
-					'summary' => $event->getSummary()
-				];
+		$all_events = [];
+
+		foreach ( $calendars as $cal_id ) {
+			try {
+				$optParams = array(
+					'orderBy' => 'startTime',
+					'singleEvents' => true,
+					'timeMin' => $start,
+					'timeMax' => $end,
+					'maxResults' => 250,
+				);
+				$results = $this->service->events->listEvents( $cal_id, $optParams );
+				
+				foreach ( $results->getItems() as $event ) {
+					$all_events[] = [
+						'id' => $event->getId(),
+						'start' => $event->start->dateTime ?: $event->start->date,
+						'end' => $event->end->dateTime ?: $event->end->date,
+						'summary' => $event->getSummary()
+					];
+				}
+			} catch ( Exception $e ) {
+				error_log( "OSB GCal Range Error ($cal_id): " . $e->getMessage() );
 			}
-			return $events;
-		} catch ( Exception $e ) {
-			error_log( 'OSB GCal Range Error: ' . $e->getMessage() );
-			return [];
 		}
+		return $all_events;
 	}
 
 	public function create_event( $appointment_data ) {
@@ -116,7 +173,7 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 				'description' => 'Phone: ' . $appointment_data['client_phone'] . "\nNotes: " . $appointment_data['client_notes'],
 				'start' => array(
 					'dateTime' => $appointment_data['date'] . 'T' . $appointment_data['time'] . ':00',
-					'timeZone' => 'Europe/Berlin', // Should be configurable
+					'timeZone' => 'Europe/Berlin',
 				),
 				'end' => array(
 					'dateTime' => date( 'Y-m-d\TH:i:s', strtotime( $appointment_data['date'] . ' ' . $appointment_data['time'] ) + ( $appointment_data['duration'] * 60 ) ),
@@ -124,10 +181,9 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 				),
 			) );
 
-			$calendarId = 'primary';
+			$calendarId = 'primary'; // Always create in Primary
 			$event = $this->service->events->insert( $calendarId, $event );
 			
-			// Clear cache for this date so the new event is seen immediately if re-fetched
 			delete_transient( 'osb_gcal_' . $appointment_data['date'] );
 
 			return $event->getId();
@@ -157,7 +213,6 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 			if ( $status === 'confirmed' ) {
 				$summary = str_replace( '[PENDING] ', '', $summary );
 				$event->setSummary( $summary );
-				// Could change colorId here if desired
 			}
 
 			$this->service->events->update( 'primary', $event->getId(), $event );
