@@ -29,6 +29,8 @@ class Ocean_Shiatsu_Booking_Core {
 		require_once OSB_PLUGIN_DIR . 'includes/class-emails.php';
 		require_once OSB_PLUGIN_DIR . 'includes/class-public.php';
 		require_once OSB_PLUGIN_DIR . 'includes/class-admin.php';
+		require_once OSB_PLUGIN_DIR . 'includes/class-logger.php';
+		require_once OSB_PLUGIN_DIR . 'includes/class-sync.php';
 	}
 
 	/**
@@ -37,6 +39,10 @@ class Ocean_Shiatsu_Booking_Core {
 	private function define_admin_hooks() {
 		$plugin_admin = new Ocean_Shiatsu_Booking_Admin();
 		add_action( 'admin_menu', array( $plugin_admin, 'add_plugin_admin_menu' ) );
+
+		$plugin_sync = new Ocean_Shiatsu_Booking_Sync();
+		add_action( 'admin_init', array( $plugin_sync, 'schedule_sync_event' ) );
+		add_action( 'osb_sync_event', array( $plugin_sync, 'sync_data' ) );
 	}
 
 	/**
@@ -46,8 +52,11 @@ class Ocean_Shiatsu_Booking_Core {
 		$plugin_public = new Ocean_Shiatsu_Booking_Public();
 		add_shortcode( 'ocean_booking', array( $plugin_public, 'render_booking_wizard' ) );
 		
-		$plugin_api = new Ocean_Shiatsu_Booking_API();
-		add_action( 'rest_api_init', array( $plugin_api, 'register_routes' ) );
+		$api = new Ocean_Shiatsu_Booking_API();
+		$this->loader->add_action( 'rest_api_init', $api, 'register_routes' );
+
+		$sync = new Ocean_Shiatsu_Booking_Sync();
+		$sync->init();
 	}
 
 	/**

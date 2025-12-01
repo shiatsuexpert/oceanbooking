@@ -72,15 +72,24 @@ class Ocean_Shiatsu_Booking_API {
 			
 			// Update GCal? (Delete old, create new logic or just let sync handle it)
 			// For robustness, let's delete the old event ID so sync creates a new one or we create one.
+			// Update GCal
 			if ( $booking->gcal_event_id ) {
 				$gcal = new Ocean_Shiatsu_Booking_Google_Calendar();
-				$gcal->delete_event( $booking->gcal_event_id );
-				// We should ideally create a new one immediately.
-				// But sync will catch it if we don't.
+				
+				// Calculate Duration
+				$start_ts = strtotime( $booking->proposed_start_time );
+				$end_ts = strtotime( $booking->proposed_end_time );
+				$duration = ( $end_ts - $start_ts ) / 60;
+
+				$new_date = date( 'Y-m-d', $start_ts );
+				$new_time = date( 'H:i', $start_ts );
+
+				$gcal->update_event_time( $booking->gcal_event_id, $new_date, $new_time, $duration );
 			}
 
 			// Notify Admin
-			// $emails->send_admin_proposal_accepted( $booking->id ); // TODO
+			$emails = new Ocean_Shiatsu_Booking_Emails();
+			$emails->send_admin_proposal_accepted( $booking->id );
 		} else {
 			// Decline
 			$wpdb->update( 
@@ -93,7 +102,8 @@ class Ocean_Shiatsu_Booking_API {
 				['id' => $booking->id] 
 			);
 			// Notify Admin
-			// $emails->send_admin_proposal_declined( $booking->id ); // TODO
+			$emails = new Ocean_Shiatsu_Booking_Emails();
+			$emails->send_admin_proposal_declined( $booking->id );
 		}
 
 		return rest_ensure_response( array( 'success' => true ) );

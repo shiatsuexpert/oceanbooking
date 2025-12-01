@@ -164,6 +164,108 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 		return $all_events;
 	}
 
+	public function get_modified_events( $since_timestamp ) {
+		if ( ! $this->is_connected ) return [];
+
+		$calendars = $this->get_selected_calendars();
+		$all_events = [];
+
+		// We only really care about the Primary calendar for Two-Way sync of bookings.
+		// But let's check all selected just in case.
+		// Actually, bookings are only created in Primary. So we only sync Primary.
+		$primary_id = 'primary';
+
+		try {
+			$optParams = array(
+				'orderBy' => 'updated',
+				'singleEvents' => true,
+				'updatedMin' => $since_timestamp,
+				'showDeleted' => true, // Important to catch cancellations
+			);
+			
+			$results = $this->service->events->listEvents( $primary_id, $optParams );
+			
+			foreach ( $results->getItems() as $event ) {
+				$status = $event->getStatus(); // confirmed, tentative, cancelled
+				
+				$start = null;
+				$end = null;
+
+				if ( $status !== 'cancelled' ) {
+					$start = $event->start->dateTime ?: $event->start->date;
+					$end = $event->end->dateTime ?: $event->end->date;
+				}
+
+				$all_events[] = [
+					'id' => $event->getId(),
+					'status' => $status,
+					'start' => $start,
+					'end' => $end,
+					'summary' => $event->getSummary()
+				];
+			}
+		} catch ( Exception $e ) {
+			error_log( "OSB GCal Sync Error: " . $e->getMessage() );
+		}
+
+		return $all_events;
+	}
+
+	public function is_connected() {
+		return $this->is_connected;
+	}
+
+	public function get_modified_events( $since_timestamp ) {
+		if ( ! $this->is_connected ) return [];
+
+		$calendars = $this->get_selected_calendars();
+		$all_events = [];
+
+		// We only really care about the Primary calendar for Two-Way sync of bookings.
+		// But let's check all selected just in case.
+		// Actually, bookings are only created in Primary. So we only sync Primary.
+		$primary_id = 'primary';
+
+		try {
+			$optParams = array(
+				'orderBy' => 'updated',
+				'singleEvents' => true,
+				'updatedMin' => $since_timestamp,
+				'showDeleted' => true, // Important to catch cancellations
+			);
+			
+			$results = $this->service->events->listEvents( $primary_id, $optParams );
+			
+			foreach ( $results->getItems() as $event ) {
+				$status = $event->getStatus(); // confirmed, tentative, cancelled
+				
+				$start = null;
+				$end = null;
+
+				if ( $status !== 'cancelled' ) {
+					$start = $event->start->dateTime ?: $event->start->date;
+					$end = $event->end->dateTime ?: $event->end->date;
+				}
+
+				$all_events[] = [
+					'id' => $event->getId(),
+					'status' => $status,
+					'start' => $start,
+					'end' => $end,
+					'summary' => $event->getSummary()
+				];
+			}
+		} catch ( Exception $e ) {
+			error_log( "OSB GCal Sync Error: " . $e->getMessage() );
+		}
+
+		return $all_events;
+	}
+
+	public function is_connected() {
+		return $this->is_connected;
+	}
+
 	public function create_event( $appointment_data ) {
 		if ( ! $this->is_connected ) return '';
 
@@ -200,6 +302,44 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 			$this->service->events->delete( 'primary', $event_id );
 		} catch ( Exception $e ) {
 			error_log( 'OSB GCal Delete Error: ' . $e->getMessage() );
+		}
+	}
+
+	public function update_event_time( $event_id, $new_date, $new_time, $duration ) {
+		if ( ! $this->is_connected || ! $event_id ) return false;
+
+		try {
+			$event = $this->service->events->get( 'primary', $event_id );
+			
+			$start_dt = $new_date . 'T' . $new_time . ':00';
+			$end_dt = date( 'Y-m-d\TH:i:s', strtotime( $new_date . ' ' . $new_time ) + ( $duration * 60 ) );
+
+			$start = new Google_Service_Calendar_EventDateTime();
+			$start->setDateTime( $start_dt );
+			$start->setTimeZone( 'Europe/Berlin' );
+			$event->setStart( $start );
+
+			$end = new Google_Service_Calendar_EventDateTime();
+			$end->setDateTime( $end_dt );
+			$end->setTimeZone( 'Europe/Berlin' );
+			$event->setEnd( $end );
+
+			// Also remove [PENDING] if it's there, assuming a reschedule accept implies confirmation? 
+			// Or maybe we just update time. Let's just update time.
+			// Actually, if we are rescheduling, it might be confirmed or pending. 
+			// Let's stick to just updating time.
+
+			$this->service->events->update( 'primary', $event->getId(), $event );
+			
+			// Clear cache for both old and new dates? 
+			// Since we don't know the old date here easily without fetching, we might miss clearing old cache.
+			// But `get_events_for_date` cache is short lived (60s).
+			delete_transient( 'osb_gcal_' . $new_date );
+			
+			return true;
+		} catch ( Exception $e ) {
+			error_log( 'OSB GCal Update Time Error: ' . $e->getMessage() );
+			return false;
 		}
 	}
 

@@ -448,16 +448,24 @@ class Ocean_Shiatsu_Booking_Admin {
 		// Update GCal
 		if ( $appt->gcal_event_id ) {
 			$gcal = new Ocean_Shiatsu_Booking_Google_Calendar();
-			// We need to implement update_event in GCal class or delete/create.
-			// For now, let's delete and re-create or just update status.
-			// Ideally we update the time.
-			// TODO: Implement GCal Update Time.
-			// Fallback: Delete and Create new?
-			$gcal->delete_event( $appt->gcal_event_id );
-			// Create new? We need params.
-			// Simplified: Just delete old. Sync will pick up new if we push it?
-			// Actually, let's just delete the old one so the slot opens.
-			// The new time is now in DB.
+			
+			// Calculate Duration
+			$start_ts = strtotime( $appt->start_time );
+			$end_ts = strtotime( $appt->end_time );
+			$duration = ( $end_ts - $start_ts ) / 60;
+
+			$new_date = date( 'Y-m-d', $start_ts );
+			$new_time = date( 'H:i', $start_ts );
+
+			// Try to update time
+			$updated = $gcal->update_event_time( $appt->gcal_event_id, $new_date, $new_time, $duration );
+			
+			if ( ! $updated ) {
+				// Fallback if update fails (e.g. event deleted in GCal)?
+				// For now, just log error (handled in class) and maybe try to create new?
+				// Let's stick to update attempt.
+				Ocean_Shiatsu_Booking_Logger::log( 'ERROR', 'Admin', 'Failed to update GCal event time', ['event_id' => $appt->gcal_event_id] );
+			}
 		}
 
 		// Send Confirmation
@@ -562,6 +570,12 @@ class Ocean_Shiatsu_Booking_Admin {
 		// Handle Settings Save
 		if ( isset( $_POST['osb_save_settings'] ) ) {
 			check_admin_referer( 'osb_save_settings_verify' );
+			
+			// Save Booking Page
+			if ( isset( $_POST['booking_page_id'] ) ) {
+				$this->update_setting( 'booking_page_id', intval( $_POST['booking_page_id'] ) );
+			}
+
 			$this->save_settings();
 			Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Admin', 'Settings Saved' );
 			echo '<div class="notice notice-success"><p>Settings saved.</p></div>';
@@ -638,10 +652,6 @@ class Ocean_Shiatsu_Booking_Admin {
 			echo '<h2>Google Calendar Integration (OAuth 2.0)</h2>';
 			echo '<form method="post" action="">';
 			wp_nonce_field( 'osb_save_settings_verify', 'osb_save_settings' );
-
-			$client_id = $this->get_setting( 'gcal_client_id' );
-			$client_secret = $this->get_setting( 'gcal_client_secret' );
-			$access_token = $this->get_setting( 'gcal_access_token' );
 			
 			echo '<table class="form-table">';
 			echo '<tr><th scope="row"><label for="gcal_client_id">Client ID</label></th>';

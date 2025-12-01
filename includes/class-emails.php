@@ -47,11 +47,12 @@ class Ocean_Shiatsu_Booking_Emails {
 		// Better: Use a setting for "Booking Page URL" or try to guess.
 		// Let's assume the user puts the shortcode on a page. We'll link to home_url('/booking') as a placeholder or use a query param on home.
 		// Actually, we can just link to site_url() and append params, assuming the shortcode is on the front page or user configures it.
-		// Let's use site_url('/booking') for now and add a TODO to make it configurable.
+		// Get Booking Page URL
+		$booking_page_id = $this->get_setting( 'booking_page_id' );
+		$base_url = $booking_page_id ? get_permalink( $booking_page_id ) : site_url( '/booking' );
 		
-		$base_url = site_url( '/booking' ); // TODO: Make configurable
-		$reschedule_link = $base_url . "?action=reschedule&token={$appt->token}";
-		$cancel_link = $base_url . "?action=cancel&token={$appt->token}";
+		$reschedule_link = add_query_arg( ['action' => 'reschedule', 'token' => $appt->token], $base_url );
+		$cancel_link = add_query_arg( ['action' => 'cancel', 'token' => $appt->token], $base_url );
 
 		$to = $appt->client_email;
 		$subject = 'Terminbestätigung: ' . date( 'd.m.Y H:i', strtotime( $appt->start_time ) );
@@ -111,9 +112,11 @@ class Ocean_Shiatsu_Booking_Emails {
 		
 		$formatted_time = date( 'd.m.Y H:i', strtotime( $new_start_time ) );
 		
-		$base_url = site_url( '/booking' ); // TODO: Configurable
-		$accept_link = $base_url . "?action=accept_proposal&token={$appt->token}";
-		$decline_link = $base_url . "?action=decline_proposal&token={$appt->token}";
+		$booking_page_id = $this->get_setting( 'booking_page_id' );
+		$base_url = $booking_page_id ? get_permalink( $booking_page_id ) : site_url( '/booking' );
+
+		$accept_link = add_query_arg( ['action' => 'accept_proposal', 'token' => $appt->token], $base_url );
+		$decline_link = add_query_arg( ['action' => 'decline_proposal', 'token' => $appt->token], $base_url );
 
 		$message = '<html><body>';
 		$message .= "<h2>Neue Terminzeit vorgeschlagen</h2>";
@@ -127,5 +130,43 @@ class Ocean_Shiatsu_Booking_Emails {
 		$message .= '</body></html>';
 
 		wp_mail( $to, $subject, $message, $headers );
+	}
+	}
+
+	public function send_admin_proposal_accepted( $booking_id ) {
+		$to = get_option( 'admin_email' );
+		$subject = 'Proposal Accepted: Booking #' . $booking_id;
+		$headers = array('Content-Type: text/html; charset=UTF-8');
+		$link = admin_url( "admin.php?page=ocean-shiatsu-booking" );
+
+		$message = "<html><body>";
+		$message .= "<h2>Proposal Accepted</h2>";
+		$message .= "<p>The client has accepted the proposed time for booking #$booking_id.</p>";
+		$message .= "<p><a href='$link'>View in Dashboard</a></p>";
+		$message .= "</body></html>";
+
+		wp_mail( $to, $subject, $message, $headers );
+	}
+
+	public function send_admin_proposal_declined( $booking_id ) {
+		$to = get_option( 'admin_email' );
+		$subject = 'Proposal Declined: Booking #' . $booking_id;
+		$headers = array('Content-Type: text/html; charset=UTF-8');
+		$link = admin_url( "admin.php?page=ocean-shiatsu-booking" );
+
+		$message = "<html><body>";
+		$message .= "<h2>Proposal Declined</h2>";
+		$message .= "<p>The client has declined the proposed time for booking #$booking_id.</p>";
+		$message .= "<p>Please check the dashboard to propose another time or contact the client.</p>";
+		$message .= "<p><a href='$link'>View in Dashboard</a></p>";
+		$message .= "</body></html>";
+
+		wp_mail( $to, $subject, $message, $headers );
+	}
+
+	private function get_setting( $key ) {
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'osb_settings';
+		return $wpdb->get_var( $wpdb->prepare( "SELECT setting_value FROM $table_name WHERE setting_key = %s", $key ) );
 	}
 }
