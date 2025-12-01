@@ -1,0 +1,36 @@
+/* Custom styles for Ocean Shiatsu Booking */
+
+#osb-booking-wizard {
+    position: relative;
+    background: #fff;
+    border-radius: 12px;
+    padding: 2rem;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+}
+
+.osb-service-card {
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: 1px solid #eee;
+}
+
+.osb-service-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
+    border-color: var(--bs-primary);
+}
+
+.osb-step {
+    animation: fadeIn 0.4s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Datepicker styling tweaks if needed */
+#osb-date-picker {
+    padding: 0.75rem;
+    font-size: 1.1rem;
+}
