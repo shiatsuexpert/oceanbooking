@@ -39,10 +39,6 @@ class Ocean_Shiatsu_Booking_Core {
 	private function define_admin_hooks() {
 		$plugin_admin = new Ocean_Shiatsu_Booking_Admin();
 		add_action( 'admin_menu', array( $plugin_admin, 'add_plugin_admin_menu' ) );
-
-		$plugin_sync = new Ocean_Shiatsu_Booking_Sync();
-		add_action( 'admin_init', array( $plugin_sync, 'schedule_sync_event' ) );
-		add_action( 'osb_sync_event', array( $plugin_sync, 'sync_data' ) );
 	}
 
 	/**
