@@ -215,56 +215,7 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 		return $this->is_connected;
 	}
 
-	public function get_modified_events( $since_timestamp ) {
-		if ( ! $this->is_connected ) return [];
 
-		$calendars = $this->get_selected_calendars();
-		$all_events = [];
-
-		// We only really care about the Primary calendar for Two-Way sync of bookings.
-		// But let's check all selected just in case.
-		// Actually, bookings are only created in Primary. So we only sync Primary.
-		$primary_id = 'primary';
-
-		try {
-			$optParams = array(
-				'orderBy' => 'updated',
-				'singleEvents' => true,
-				'updatedMin' => $since_timestamp,
-				'showDeleted' => true, // Important to catch cancellations
-			);
-			
-			$results = $this->service->events->listEvents( $primary_id, $optParams );
-			
-			foreach ( $results->getItems() as $event ) {
-				$status = $event->getStatus(); // confirmed, tentative, cancelled
-				
-				$start = null;
-				$end = null;
-
-				if ( $status !== 'cancelled' ) {
-					$start = $event->start->dateTime ?: $event->start->date;
-					$end = $event->end->dateTime ?: $event->end->date;
-				}
-
-				$all_events[] = [
-					'id' => $event->getId(),
-					'status' => $status,
-					'start' => $start,
-					'end' => $end,
-					'summary' => $event->getSummary()
-				];
-			}
-		} catch ( Exception $e ) {
-			error_log( "OSB GCal Sync Error: " . $e->getMessage() );
-		}
-
-		return $all_events;
-	}
-
-	public function is_connected() {
-		return $this->is_connected;
-	}
 
 	public function create_event( $appointment_data ) {
 		if ( ! $this->is_connected ) return '';

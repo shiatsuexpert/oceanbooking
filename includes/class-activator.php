@@ -113,18 +113,9 @@ class Ocean_Shiatsu_Booking_Activator {
 				)
 			);
 		}
-		if ( $count_settings == 0 ) {
-			$wpdb->insert(
-				$table_name_settings,
-				array(
-					'setting_key' => 'anchor_times',
-					'setting_value' => json_encode(['09:00', '14:00']), // Default anchors
-				)
-			);
-		}
-
 		// Schedule Cron
 		if ( ! wp_next_scheduled( 'osb_cron_sync_events' ) ) {
 			wp_schedule_event( time(), 'every_15_mins', 'osb_cron_sync_events' );
 		}
 	}
+}

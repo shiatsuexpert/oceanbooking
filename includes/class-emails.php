@@ -131,7 +131,6 @@ class Ocean_Shiatsu_Booking_Emails {
 
 		wp_mail( $to, $subject, $message, $headers );
 	}
-	}
 
 	public function send_admin_proposal_accepted( $booking_id ) {
 		$to = get_option( 'admin_email' );
