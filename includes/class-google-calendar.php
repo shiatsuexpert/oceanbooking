@@ -164,6 +164,64 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 		return $all_events;
 	}
 
+	public function get_modified_events( $since_timestamp ) {
+		if ( ! $this->is_connected ) return [];
+
+		$calendars = $this->get_selected_calendars();
+		$all_events = [];
+		$primary_id = 'primary';
+
+		try {
+			$optParams = array(
+				'orderBy' => 'updated',
+				'singleEvents' => true,
+				'updatedMin' => $since_timestamp,
+				'showDeleted' => true,
+			);
+			
+			$results = $this->service->events->listEvents( $primary_id, $optParams );
+			
+			foreach ( $results->getItems() as $event ) {
+				$status = $event->getStatus();
+				$start = null;
+				$end = null;
+
+				if ( $status !== 'cancelled' ) {
+					$start = $event->start->dateTime ?: $event->start->date;
+					$end = $event->end->dateTime ?: $event->end->date;
+				}
+
+				$all_events[] = [
+					'id' => $event->getId(),
+					'status' => $status,
+					'start' => $start,
+					'end' => $end,
+					'summary' => $event->getSummary()
+				];
+			}
+		} catch ( Exception $e ) {
+			error_log( "OSB GCal Sync Error: " . $e->getMessage() );
+		}
+
+		return $all_events;
+	}
+
+	public function get_oauth_url( $client_id ) {
+		$redirect_uri = admin_url( 'admin.php?page=ocean-shiatsu-booking&action=oauth_callback' );
+		$scope = 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly';
+		
+		$params = array(
+			'response_type' => 'code',
+			'client_id' => $client_id,
+			'redirect_uri' => $redirect_uri,
+			'scope' => $scope,
+			'access_type' => 'offline',
+			'prompt' => 'consent'
+		);
+		
+		return 'https://accounts.google.com/o/oauth2/v2/auth?' . http_build_query( $params );
+	}
+
 
 
 	public function is_connected() {

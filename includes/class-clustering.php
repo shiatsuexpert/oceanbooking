@@ -17,6 +17,7 @@ class Ocean_Shiatsu_Booking_Clustering {
 	 */
 	public function get_available_slots( $date, $service_id ) {
 		global $wpdb;
+		$is_debug = is_user_logged_in();
 
 		// 1. Fetch Service Details (Duration + Prep)
 		$service = $wpdb->get_row( "SELECT duration_minutes, preparation_minutes FROM {$wpdb->prefix}osb_services WHERE id = $service_id" );

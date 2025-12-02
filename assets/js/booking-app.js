@@ -94,6 +94,7 @@ const osbApp = {
                     // Set State
                     this.state.serviceId = booking.service_id;
                     this.state.serviceName = booking.service_name;
+                    this.state.serviceDuration = booking.duration_minutes;
 
                     // We need duration. It might be in booking object if we joined, 
                     // or we fetch it. For now let's assume the API returns it or we re-fetch services.

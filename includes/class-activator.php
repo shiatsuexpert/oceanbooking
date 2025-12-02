@@ -22,8 +22,8 @@ class Ocean_Shiatsu_Booking_Activator {
 			client_email VARCHAR(100) NOT NULL,
 			client_phone VARCHAR(50) NOT NULL,
 			client_notes text DEFAULT '',
-			start_time datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
-			end_time datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
+			start_time datetime DEFAULT NULL,
+			end_time datetime DEFAULT NULL,
 			status varchar(20) DEFAULT 'pending' NOT NULL,
 			gcal_event_id varchar(255) DEFAULT '' NOT NULL,
 			token varchar(64) DEFAULT '' NOT NULL,
@@ -42,7 +42,7 @@ class Ocean_Shiatsu_Booking_Activator {
 		$table_name_logs = $wpdb->prefix . 'osb_logs';
 		$sql_logs = "CREATE TABLE $table_name_logs (
 			id mediumint(9) NOT NULL AUTO_INCREMENT,
-			created_at datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
+			created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
 			level varchar(10) NOT NULL,
 			source varchar(20) NOT NULL,
 			message text NOT NULL,

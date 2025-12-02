@@ -461,10 +461,9 @@ class Ocean_Shiatsu_Booking_Admin {
 			$updated = $gcal->update_event_time( $appt->gcal_event_id, $new_date, $new_time, $duration );
 			
 			if ( ! $updated ) {
-				// Fallback if update fails (e.g. event deleted in GCal)?
-				// For now, just log error (handled in class) and maybe try to create new?
-				// Let's stick to update attempt.
 				Ocean_Shiatsu_Booking_Logger::log( 'ERROR', 'Admin', 'Failed to update GCal event time', ['event_id' => $appt->gcal_event_id] );
+				echo '<div class="error"><p>Failed to update Google Calendar event. Reschedule NOT confirmed.</p></div>';
+				return; // Do not confirm locally if GCal fails
 			}
 		}
 
@@ -617,6 +616,21 @@ class Ocean_Shiatsu_Booking_Admin {
 				
 				<table class="form-table">
 					<tr valign="top">
+						<th scope="row">Booking Page</th>
+						<td>
+							<?php
+							$booking_page_id = $this->get_setting( 'booking_page_id' );
+							wp_dropdown_pages( array(
+								'name' => 'booking_page_id',
+								'selected' => $booking_page_id,
+								'show_option_none' => 'Select Page',
+								'option_none_value' => 0,
+							) );
+							?>
+							<p class="description">Select the page where the <code>[ocean_shiatsu_booking]</code> shortcode is placed.</p>
+						</td>
+					</tr>
+					<tr valign="top">
 						<th scope="row">Working Days</th>
 						<td>
 							<?php
@@ -708,5 +722,84 @@ class Ocean_Shiatsu_Booking_Admin {
 		} else {
 			$wpdb->insert( $table, ['setting_key' => $key, 'setting_value' => $value] );
 		}
+	}
+	}
+
+	private function handle_oauth_callback( $code ) {
+		global $wpdb;
+		$table = $wpdb->prefix . 'osb_settings';
+		
+		$client_id = $this->get_setting( 'gcal_client_id' );
+		$client_secret = $this->get_setting( 'gcal_client_secret' );
+		$redirect_uri = admin_url( 'admin.php?page=ocean-shiatsu-booking&action=oauth_callback' );
+
+		if ( ! $client_id || ! $client_secret ) {
+			echo '<div class="error"><p>Client ID or Secret missing.</p></div>';
+			return;
+		}
+
+		// Exchange code for token
+		$url = 'https://oauth2.googleapis.com/token';
+		$body = array(
+			'code' => $code,
+			'client_id' => $client_id,
+			'client_secret' => $client_secret,
+			'redirect_uri' => $redirect_uri,
+			'grant_type' => 'authorization_code'
+		);
+
+		$response = wp_remote_post( $url, array( 'body' => $body ) );
+		
+		if ( is_wp_error( $response ) ) {
+			echo '<div class="error"><p>OAuth Error: ' . $response->get_error_message() . '</p></div>';
+			return;
+		}
+
+		$data = json_decode( wp_remote_retrieve_body( $response ), true );
+		
+		if ( isset( $data['error'] ) ) {
+			echo '<div class="error"><p>OAuth Error: ' . $data['error_description'] . '</p></div>';
+			return;
+		}
+
+		// Save Tokens
+		$this->update_setting( 'gcal_access_token', $data['access_token'] );
+		if ( isset( $data['refresh_token'] ) ) {
+			$this->update_setting( 'gcal_refresh_token', $data['refresh_token'] );
+		}
+
+		// Redirect to Settings
+		wp_redirect( admin_url( 'admin.php?page=osb-settings&status=connected' ) );
+		exit;
+	}
+
+	private function render_calendar_picker() {
+		$gcal = new Ocean_Shiatsu_Booking_Google_Calendar();
+		$calendars = $gcal->get_calendar_list();
+		
+		if ( empty( $calendars ) ) {
+			echo '<p>No calendars found or error fetching list.</p>';
+			return;
+		}
+
+		global $wpdb;
+		$table = $wpdb->prefix . 'osb_settings';
+		$json = $wpdb->get_var( "SELECT setting_value FROM $table WHERE setting_key = 'gcal_selected_calendars'" );
+		$selected = json_decode( $json, true ) ?: ['primary'];
+
+		echo '<h3>Select Calendars to Sync (Busy Times)</h3>';
+		echo '<form method="post" action="">';
+		wp_nonce_field( 'osb_save_calendars_verify', 'osb_save_calendars' );
+		
+		foreach ( $calendars as $cal ) {
+			$checked = in_array( $cal['id'], $selected ) ? 'checked' : '';
+			echo '<p><label>';
+			echo '<input type="checkbox" name="gcal_calendars[]" value="' . esc_attr( $cal['id'] ) . '" ' . $checked . '> ';
+			echo esc_html( $cal['summary'] ) . ( $cal['primary'] ? ' (Primary)' : '' );
+			echo '</label></p>';
+		}
+		
+		echo '<input type="submit" class="button" value="Save Calendar Selection">';
+		echo '</form>';
 	}
 }

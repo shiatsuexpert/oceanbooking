@@ -6,44 +6,49 @@ class Ocean_Shiatsu_Booking_API {
 		register_rest_route( 'osb/v1', '/availability', array(
 			'methods'  => 'GET',
 			'callback' => array( $this, 'get_availability' ),
-			'permission_callback' => '__return_true',
+			'permission_callback' => '__return_true', // Public endpoint
 		) );
 
 		register_rest_route( 'osb/v1', '/booking', array(
 			'methods'  => 'POST',
 			'callback' => array( $this, 'create_booking' ),
-			'permission_callback' => '__return_true',
+			'permission_callback' => array( $this, 'verify_nonce' ),
 		) );
 
 		register_rest_route( 'osb/v1', '/action', array(
 			'methods'  => 'GET',
 			'callback' => array( $this, 'handle_action' ),
-			'permission_callback' => '__return_true',
+			'permission_callback' => '__return_true', // Token protected
 		) );
 
 		register_rest_route( 'osb/v1', '/booking-by-token', array(
 			'methods'  => 'GET',
 			'callback' => array( $this, 'get_booking_by_token' ),
-			'permission_callback' => '__return_true',
+			'permission_callback' => '__return_true', // Token protected
 		) );
 
 		register_rest_route( 'osb/v1', '/reschedule', array(
 			'methods'  => 'POST',
 			'callback' => array( $this, 'request_reschedule' ),
-			'permission_callback' => '__return_true',
+			'permission_callback' => array( $this, 'verify_nonce' ),
 		) );
 
 		register_rest_route( 'osb/v1', '/cancel', array(
 			'methods'  => 'POST',
 			'callback' => array( $this, 'cancel_booking' ),
-			'permission_callback' => '__return_true',
+			'permission_callback' => array( $this, 'verify_nonce' ),
 		) );
 
 		register_rest_route( 'osb/v1', '/respond-proposal', array(
 			'methods'  => 'POST',
 			'callback' => array( $this, 'respond_proposal' ),
-			'permission_callback' => '__return_true',
+			'permission_callback' => array( $this, 'verify_nonce' ),
 		) );
+	}
+
+	public function verify_nonce( $request ) {
+		$nonce = $request->get_header( 'X-WP-Nonce' );
+		return wp_verify_nonce( $nonce, 'wp_rest' );
 	}
 
 	public function respond_proposal( $request ) {
@@ -241,9 +246,10 @@ class Ocean_Shiatsu_Booking_API {
 			return new WP_Error( 'invalid_token', 'Booking not found', array( 'status' => 404 ) );
 		}
 
-		// Fetch service name
-		$service_name = $wpdb->get_var( $wpdb->prepare( "SELECT name FROM {$wpdb->prefix}osb_services WHERE id = %d", $booking->service_id ) );
-		$booking->service_name = $service_name;
+		// Fetch service name and duration
+		$service = $wpdb->get_row( $wpdb->prepare( "SELECT name, duration_minutes FROM {$wpdb->prefix}osb_services WHERE id = %d", $booking->service_id ) );
+		$booking->service_name = $service->name;
+		$booking->duration_minutes = $service->duration_minutes;
 
 		return rest_ensure_response( $booking );
 	}
@@ -354,5 +360,23 @@ class Ocean_Shiatsu_Booking_API {
 		}
 
 		return rest_ensure_response( array( 'success' => true, 'action' => $action ) );
+	}
+
+	private function check_rate_limit() {
+		$ip = $_SERVER['REMOTE_ADDR'];
+		$key = 'osb_rate_limit_' . md5( $ip );
+		$limit = 50; // Requests per hour
+		$window = 3600;
+
+		$current = get_transient( $key );
+		if ( false === $current ) {
+			set_transient( $key, 1, $window );
+		} else {
+			if ( $current >= $limit ) {
+				return new WP_Error( 'rate_limit', 'Too many requests.', array( 'status' => 429 ) );
+			}
+			set_transient( $key, $current + 1, $window );
+		}
+		return true;
 	}
 }
