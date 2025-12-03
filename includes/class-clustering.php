@@ -20,7 +20,7 @@ class Ocean_Shiatsu_Booking_Clustering {
 		$is_debug = is_user_logged_in();
 
 		// 1. Fetch Service Details (Duration + Prep)
-		$service = $wpdb->get_row( "SELECT duration_minutes, preparation_minutes FROM {$wpdb->prefix}osb_services WHERE id = $service_id" );
+		$service = $wpdb->get_row( $wpdb->prepare( "SELECT duration_minutes, preparation_minutes FROM {$wpdb->prefix}osb_services WHERE id = %d", $service_id ) );
 		if ( ! $service ) return [];
 
 		$duration = intval( $service->duration_minutes );

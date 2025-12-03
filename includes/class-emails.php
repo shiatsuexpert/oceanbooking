@@ -39,7 +39,7 @@ class Ocean_Shiatsu_Booking_Emails {
 
 	public function send_client_confirmation( $booking_id ) {
 		global $wpdb;
-		$appt = $wpdb->get_row( "SELECT * FROM {$wpdb->prefix}osb_appointments WHERE id = $booking_id" );
+		$appt = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}osb_appointments WHERE id = %d", $booking_id ) );
 		
 		// Links
 		// Assuming the booking page is where the shortcode is. We need to know the URL.

@@ -207,7 +207,7 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 	}
 
 	public function get_oauth_url( $client_id ) {
-		$redirect_uri = admin_url( 'admin.php?page=ocean-shiatsu-booking&action=oauth_callback' );
+		$redirect_uri = admin_url( 'admin.php?page=osb-settings&action=oauth_callback' );
 		$scope = 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly';
 		
 		$params = array(
@@ -239,11 +239,11 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 				'description' => 'Phone: ' . $appointment_data['client_phone'] . "\nNotes: " . $appointment_data['client_notes'],
 				'start' => array(
 					'dateTime' => $appointment_data['date'] . 'T' . $appointment_data['time'] . ':00',
-					'timeZone' => 'Europe/Berlin',
+					'timeZone' => $this->get_timezone(),
 				),
 				'end' => array(
 					'dateTime' => date( 'Y-m-d\TH:i:s', strtotime( $appointment_data['date'] . ' ' . $appointment_data['time'] ) + ( $appointment_data['duration'] * 60 ) ),
-					'timeZone' => 'Europe/Berlin',
+					'timeZone' => $this->get_timezone(),
 				),
 			) );
 
@@ -280,12 +280,12 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 
 			$start = new Google_Service_Calendar_EventDateTime();
 			$start->setDateTime( $start_dt );
-			$start->setTimeZone( 'Europe/Berlin' );
+			$start->setTimeZone( $this->get_timezone() );
 			$event->setStart( $start );
 
 			$end = new Google_Service_Calendar_EventDateTime();
 			$end->setDateTime( $end_dt );
-			$end->setTimeZone( 'Europe/Berlin' );
+			$end->setTimeZone( $this->get_timezone() );
 			$event->setEnd( $end );
 
 			// Also remove [PENDING] if it's there, assuming a reschedule accept implies confirmation? 
@@ -323,5 +323,11 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 		} catch ( Exception $e ) {
 			error_log( 'OSB GCal Update Error: ' . $e->getMessage() );
 		}
+	}
+	private function get_timezone() {
+		global $wpdb;
+		$table = $wpdb->prefix . 'osb_settings';
+		$timezone = $wpdb->get_var( "SELECT setting_value FROM $table WHERE setting_key = 'timezone'" );
+		return $timezone ?: 'Europe/Berlin';
 	}
 }

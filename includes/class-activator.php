@@ -46,9 +46,9 @@ class Ocean_Shiatsu_Booking_Activator {
 			level varchar(10) NOT NULL,
 			source varchar(20) NOT NULL,
 			message text NOT NULL,
-			context longtext DEFAULT NULL,
+			context text DEFAULT NULL,
 			PRIMARY KEY  (id),
-			KEY created_at (created_at)
+			KEY level (level)
 		) $charset_collate;";
 
 		// Services Table

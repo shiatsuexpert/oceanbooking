@@ -105,10 +105,16 @@ class Ocean_Shiatsu_Booking_Sync {
 		}
 
 		// Handle Updates (Time Change)
-		$gcal_start = date( 'Y-m-d H:i:s', strtotime( $event['start'] ) );
-		$gcal_end = date( 'Y-m-d H:i:s', strtotime( $event['end'] ) );
+		// Normalize to UTC for comparison if possible, or just compare timestamps
+		$gcal_start_ts = strtotime( $event['start'] );
+		$gcal_end_ts = strtotime( $event['end'] );
+		$wp_start_ts = strtotime( $booking->start_time );
+		$wp_end_ts = strtotime( $booking->end_time );
 
-		if ( $booking->start_time !== $gcal_start || $booking->end_time !== $gcal_end ) {
+		if ( $wp_start_ts !== $gcal_start_ts || $wp_end_ts !== $gcal_end_ts ) {
+			$gcal_start = date( 'Y-m-d H:i:s', $gcal_start_ts );
+			$gcal_end = date( 'Y-m-d H:i:s', $gcal_end_ts );
+
 			$wpdb->update( 
 				$table_name, 
 				[

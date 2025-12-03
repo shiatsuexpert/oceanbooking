@@ -151,6 +151,9 @@ class Ocean_Shiatsu_Booking_Admin {
 
 		// Handle Delete
 		if ( isset( $_GET['action'] ) && $_GET['action'] === 'delete' && isset( $_GET['id'] ) ) {
+			if ( ! isset( $_GET['_wpnonce'] ) || ! wp_verify_nonce( $_GET['_wpnonce'], 'osb_delete_service_' . $_GET['id'] ) ) {
+				wp_die( 'Security check failed' );
+			}
 			$wpdb->delete( $table_name, ['id' => intval( $_GET['id'] )] );
 			echo '<div class="notice notice-success"><p>Service deleted.</p></div>';
 		}
@@ -180,7 +183,7 @@ class Ocean_Shiatsu_Booking_Admin {
 		// Edit Mode
 		$edit_service = null;
 		if ( isset( $_GET['action'] ) && $_GET['action'] === 'edit' && isset( $_GET['id'] ) ) {
-			$edit_service = $wpdb->get_row( "SELECT * FROM $table_name WHERE id = " . intval( $_GET['id'] ) );
+			$edit_service = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table_name WHERE id = %d", intval( $_GET['id'] ) ) );
 		}
 
 		$services = $wpdb->get_results( "SELECT * FROM $table_name" );
@@ -210,7 +213,8 @@ class Ocean_Shiatsu_Booking_Admin {
 									<td><?php echo number_format( $s->price, 2 ); ?> €</td>
 									<td>
 										<a href="?page=osb-services&action=edit&id=<?php echo $s->id; ?>" class="button button-small">Edit</a>
-										<a href="?page=osb-services&action=delete&id=<?php echo $s->id; ?>" class="button button-small button-link-delete" onclick="return confirm('Are you sure?')">Delete</a>
+										<?php $del_url = wp_nonce_url( "?page=osb-services&action=delete&id={$s->id}", 'osb_delete_service_' . $s->id ); ?>
+										<a href="<?php echo $del_url; ?>" class="button button-small button-link-delete" onclick="return confirm('Are you sure?')">Delete</a>
 									</td>
 								</tr>
 							<?php endforeach; ?>
@@ -337,8 +341,8 @@ class Ocean_Shiatsu_Booking_Admin {
 							<td><?php echo $appt->status; ?></td>
 							<td>
 								<?php if ( $appt->status === 'pending' ) : ?>
-									<a href="<?php echo site_url( "wp-json/osb/v1/action?action=accept&id={$appt->id}" ); ?>" class="button button-primary">Accept</a>
-									<a href="<?php echo site_url( "wp-json/osb/v1/action?action=reject&id={$appt->id}" ); ?>" class="button">Reject</a>
+									<a href="<?php echo site_url( "wp-json/osb/v1/action?action=accept&id={$appt->id}&token={$appt->admin_token}" ); ?>" class="button button-primary">Accept</a>
+									<a href="<?php echo site_url( "wp-json/osb/v1/action?action=reject&id={$appt->id}&token={$appt->admin_token}" ); ?>" class="button">Reject</a>
 									<a href="<?php echo admin_url( "admin.php?page=ocean-shiatsu-booking&action=propose&id={$appt->id}" ); ?>" class="button">Propose New Time</a>
 								<?php elseif ( $appt->status === 'reschedule_requested' ) : ?>
 									<p><strong>Requested:</strong> <?php echo $appt->proposed_start_time; ?></p>
@@ -369,6 +373,14 @@ class Ocean_Shiatsu_Booking_Admin {
 		$gcal = new Ocean_Shiatsu_Booking_Google_Calendar();
 		Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Admin', 'Manual Sync Started' );
 		
+		// Rate Limit Manual Sync
+		$key = 'osb_manual_sync_limit';
+		if ( get_transient( $key ) ) {
+			echo '<div class="notice notice-warning"><p>Sync limit reached. Please wait a moment.</p></div>';
+			return;
+		}
+		set_transient( $key, 1, 60 ); // 1 minute limit
+
 		$start = date( 'Y-m-d' );
 		$end = date( 'Y-m-d', strtotime( '+30 days' ) );
 		
@@ -403,6 +415,9 @@ class Ocean_Shiatsu_Booking_Admin {
 				$count_updated++;
 			} else {
 				// Insert new
+				$token = bin2hex( random_bytes( 32 ) );
+				$admin_token = bin2hex( random_bytes( 32 ) );
+
 				$wpdb->insert(
 					"{$wpdb->prefix}osb_appointments",
 					array(
@@ -413,7 +428,9 @@ class Ocean_Shiatsu_Booking_Admin {
 						'start_time' => $start_time,
 						'end_time' => $end_time,
 						'status' => 'confirmed', // External events are confirmed by default
-						'gcal_event_id' => $event['id']
+						'gcal_event_id' => $event['id'],
+						'token' => $token,
+						'admin_token' => $admin_token
 					)
 				);
 				$count_new++;
@@ -429,7 +446,7 @@ class Ocean_Shiatsu_Booking_Admin {
 		$id = intval( $_POST['booking_id'] );
 		$table_name = $wpdb->prefix . 'osb_appointments';
 		
-		$appt = $wpdb->get_row( "SELECT * FROM $table_name WHERE id = $id" );
+		$appt = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table_name WHERE id = %d", $id ) );
 		if ( ! $appt || ! $appt->proposed_start_time ) return;
 
 		// Update Times
@@ -449,9 +466,9 @@ class Ocean_Shiatsu_Booking_Admin {
 		if ( $appt->gcal_event_id ) {
 			$gcal = new Ocean_Shiatsu_Booking_Google_Calendar();
 			
-			// Calculate Duration
-			$start_ts = strtotime( $appt->start_time );
-			$end_ts = strtotime( $appt->end_time );
+			// Calculate Duration from PROPOSED times
+			$start_ts = strtotime( $appt->proposed_start_time );
+			$end_ts = strtotime( $appt->proposed_end_time );
 			$duration = ( $end_ts - $start_ts ) / 60;
 
 			$new_date = date( 'Y-m-d', $start_ts );
@@ -501,7 +518,7 @@ class Ocean_Shiatsu_Booking_Admin {
 
 	private function render_propose_form( $id ) {
 		global $wpdb;
-		$appt = $wpdb->get_row( "SELECT * FROM {$wpdb->prefix}osb_appointments WHERE id = $id" );
+		$appt = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}osb_appointments WHERE id = %d", $id ) );
 		if ( ! $appt ) {
 			echo '<div class="error"><p>Appointment not found.</p></div>';
 			return;
@@ -603,11 +620,15 @@ class Ocean_Shiatsu_Booking_Admin {
 			$this->handle_oauth_callback( $_GET['code'] );
 		}	
 
-		$anchor_times = json_decode( $this->get_setting( 'anchor_times' ), true );
+		$anchor_times = json_decode( $this->get_setting( 'anchor_times' ), true ) ?: ['09:00', '14:00'];
 		$working_start = $this->get_setting( 'working_start' ) ?: '09:00';
 		$working_end = $this->get_setting( 'working_end' ) ?: '18:00';
 		$working_days = json_decode( $this->get_setting( 'working_days' ), true ) ?: ['1','2','3','4','5'];
-		$gcal_creds = $this->get_setting( 'gcal_credentials' );
+		
+		$client_id = $this->get_setting( 'gcal_client_id' );
+		$client_secret = $this->get_setting( 'gcal_client_secret' );
+		$access_token = $this->get_setting( 'gcal_access_token' );
+
 		?>
 		<div class="wrap">
 			<h1>Settings</h1>
@@ -656,6 +677,24 @@ class Ocean_Shiatsu_Booking_Admin {
 							<p class="description">Comma separated times (e.g. 09:00, 14:00). These are the preferred start times for the first booking of the day.</p>
 						</td>
 					</tr>
+					<tr valign="top">
+						<th scope="row">Timezone</th>
+						<td>
+							<?php
+							$timezone = $this->get_setting( 'timezone' ) ?: 'Europe/Berlin';
+							?>
+							<select name="timezone" class="regular-text">
+								<?php
+								$timezones = timezone_identifiers_list();
+								foreach ( $timezones as $tz ) {
+									$selected = ( $tz === $timezone ) ? 'selected' : '';
+									echo "<option value='" . esc_attr($tz) . "' $selected>" . esc_html($tz) . "</option>";
+								}
+								?>
+							</select>
+							<p class="description">Timezone for Google Calendar events. Defaults to Europe/Berlin.</p>
+						</td>
+					</tr>
 				</table>
 				
 				<?php submit_button( 'Save Settings' ); ?>
@@ -675,7 +714,7 @@ class Ocean_Shiatsu_Booking_Admin {
 			echo '<td><input type="password" name="gcal_client_secret" id="gcal_client_secret" value="' . esc_attr( $client_secret ) . '" class="regular-text"></td></tr>';
 			
 			echo '<tr><th scope="row">Redirect URI</th>';
-			echo '<td><code>' . admin_url( 'admin.php?page=ocean-shiatsu-booking&action=oauth_callback' ) . '</code><br><small>Add this to your Google Cloud Console "Authorized redirect URIs".</small></td></tr>';
+			echo '<td><code>' . admin_url( 'admin.php?page=osb-settings&action=oauth_callback' ) . '</code><br><small>Add this to your Google Cloud Console "Authorized redirect URIs".</small></td></tr>';
 			
 			echo '</table>';
 			echo '<p class="submit"><input type="submit" name="submit" id="submit" class="button button-primary" value="Save Settings"></p>';
@@ -723,6 +762,37 @@ class Ocean_Shiatsu_Booking_Admin {
 			$wpdb->insert( $table, ['setting_key' => $key, 'setting_value' => $value] );
 		}
 	}
+
+	private function save_settings() {
+		if ( isset( $_POST['working_start'] ) ) $this->update_setting( 'working_start', sanitize_text_field( $_POST['working_start'] ) );
+		if ( isset( $_POST['working_end'] ) ) $this->update_setting( 'working_end', sanitize_text_field( $_POST['working_end'] ) );
+		
+		if ( isset( $_POST['working_days'] ) ) {
+			$days = array_map( 'sanitize_text_field', $_POST['working_days'] );
+			$this->update_setting( 'working_days', json_encode( $days ) );
+		}
+
+		if ( isset( $_POST['anchor_times'] ) ) {
+			$times = array_map( 'trim', explode( ',', sanitize_text_field( $_POST['anchor_times'] ) ) );
+			$this->update_setting( 'anchor_times', json_encode( $times ) );
+		}
+
+		if ( isset( $_POST['timezone'] ) ) {
+			$this->update_setting( 'timezone', sanitize_text_field( $_POST['timezone'] ) );
+		}
+
+		if ( isset( $_POST['gcal_client_id'] ) ) $this->update_setting( 'gcal_client_id', sanitize_text_field( $_POST['gcal_client_id'] ) );
+		if ( isset( $_POST['gcal_client_secret'] ) ) $this->update_setting( 'gcal_client_secret', sanitize_text_field( $_POST['gcal_client_secret'] ) );
+	}
+
+	private function handle_disconnect() {
+		$this->update_setting( 'gcal_access_token', '' );
+		$this->update_setting( 'gcal_refresh_token', '' );
+	}
+
+	private function get_oauth_url( $client_id ) {
+		$gcal = new Ocean_Shiatsu_Booking_Google_Calendar();
+		return $gcal->get_oauth_url( $client_id );
 	}
 
 	private function handle_oauth_callback( $code ) {
@@ -731,7 +801,7 @@ class Ocean_Shiatsu_Booking_Admin {
 		
 		$client_id = $this->get_setting( 'gcal_client_id' );
 		$client_secret = $this->get_setting( 'gcal_client_secret' );
-		$redirect_uri = admin_url( 'admin.php?page=ocean-shiatsu-booking&action=oauth_callback' );
+		$redirect_uri = admin_url( 'admin.php?page=osb-settings&action=oauth_callback' );
 
 		if ( ! $client_id || ! $client_secret ) {
 			echo '<div class="error"><p>Client ID or Secret missing.</p></div>';
@@ -757,8 +827,9 @@ class Ocean_Shiatsu_Booking_Admin {
 
 		$data = json_decode( wp_remote_retrieve_body( $response ), true );
 		
-		if ( isset( $data['error'] ) ) {
-			echo '<div class="error"><p>OAuth Error: ' . $data['error_description'] . '</p></div>';
+		if ( ! $data || isset( $data['error'] ) ) {
+			$error_msg = isset( $data['error_description'] ) ? $data['error_description'] : 'Unknown Error';
+			echo '<div class="error"><p>OAuth Error: ' . $error_msg . '</p></div>';
 			return;
 		}
 

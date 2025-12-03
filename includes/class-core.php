@@ -6,11 +6,6 @@
 class Ocean_Shiatsu_Booking_Core {
 
 	/**
-	 * The loader that's responsible for maintaining and registering all hooks.
-	 */
-	protected $loader;
-
-	/**
 	 * Define the core functionality of the plugin.
 	 */
 	public function __construct() {
@@ -46,10 +41,10 @@ class Ocean_Shiatsu_Booking_Core {
 	 */
 	private function define_public_hooks() {
 		$plugin_public = new Ocean_Shiatsu_Booking_Public();
-		add_shortcode( 'ocean_booking', array( $plugin_public, 'render_booking_wizard' ) );
+		add_shortcode( 'ocean_shiatsu_booking', array( $plugin_public, 'render_booking_wizard' ) );
 		
 		$api = new Ocean_Shiatsu_Booking_API();
-		$this->loader->add_action( 'rest_api_init', $api, 'register_routes' );
+		add_action( 'rest_api_init', array( $api, 'register_routes' ) );
 
 		$sync = new Ocean_Shiatsu_Booking_Sync();
 		$sync->init();
@@ -59,6 +54,6 @@ class Ocean_Shiatsu_Booking_Core {
 	 * Run the loader to execute all of the hooks with WordPress.
 	 */
 	public function run() {
-		// $this->loader->run();
+		// Loader removed in favor of direct hooks
 	}
 }
