@@ -103,7 +103,7 @@ class Ocean_Shiatsu_Booking_Emails {
 
 	public function send_proposal( $booking_id, $new_start_time ) {
 		global $wpdb;
-		$appt = $wpdb->get_row( "SELECT * FROM {$wpdb->prefix}osb_appointments WHERE id = $booking_id" );
+		$appt = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}osb_appointments WHERE id = %d", $booking_id ) );
 		
 		$to = $appt->client_email;
 		$subject = 'Deine Terminanfrage - Neue Terminzeit vorgeschlagen';

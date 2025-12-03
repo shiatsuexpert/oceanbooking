@@ -324,6 +324,79 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 			error_log( 'OSB GCal Update Error: ' . $e->getMessage() );
 		}
 	}
+	public function watch_calendar( $calendar_id ) {
+		if ( ! $this->is_connected ) return false;
+
+		$channel_id = 'osb_watch_' . md5( $calendar_id . uniqid() );
+		$token = get_option( 'osb_webhook_token' );
+		if ( ! $token ) {
+			$token = wp_generate_password( 32, false );
+			update_option( 'osb_webhook_token', $token );
+		}
+
+		$channel = new Google_Service_Calendar_Channel();
+		$channel->setId( $channel_id );
+		$channel->setType( 'web_hook' );
+		$channel->setAddress( get_rest_url( null, 'osb/v1/gcal-webhook' ) );
+		$channel->setToken( $token );
+		// $channel->setExpiration( (time() + 604800) * 1000 ); // 7 days in ms (optional, Google sets default)
+
+		try {
+			$result = $this->service->events->watch( $calendar_id, $channel );
+			
+			// Store Channel Info
+			$channels = get_option( 'osb_watch_channels', [] );
+			$channels[ $calendar_id ] = [
+				'channel_id' => $result->getId(),
+				'resource_id' => $result->getResourceId(),
+				'expiration' => ( time() + 600000 ), // Approx 7 days, store local expiration slightly earlier to be safe? 
+				// Google returns expiration in header or body? The response is a Channel object.
+				// The response usually contains expiration.
+				'expiration_ts' => $result->getExpiration() / 1000 // Convert ms to seconds
+			];
+			update_option( 'osb_watch_channels', $channels );
+			
+			return true;
+		} catch ( Exception $e ) {
+			error_log( "OSB GCal Watch Error ($calendar_id): " . $e->getMessage() );
+			return false;
+		}
+	}
+
+	public function stop_watch( $channel_id, $resource_id ) {
+		if ( ! $this->is_connected ) return;
+
+		$channel = new Google_Service_Calendar_Channel();
+		$channel->setId( $channel_id );
+		$channel->setResourceId( $resource_id );
+
+		try {
+			$this->service->channels->stop( $channel );
+		} catch ( Exception $e ) {
+			error_log( "OSB GCal Stop Watch Error: " . $e->getMessage() );
+		}
+	}
+
+	public function renew_watches() {
+		if ( ! $this->is_connected ) return;
+
+		$channels = get_option( 'osb_watch_channels', [] );
+		$now = time();
+
+		foreach ( $channels as $cal_id => $data ) {
+			// Renew if expiring in less than 24 hours
+			if ( isset( $data['expiration_ts'] ) && ( $data['expiration_ts'] - $now ) < 86400 ) {
+				$this->stop_watch( $data['channel_id'], $data['resource_id'] );
+				$this->watch_calendar( $cal_id );
+			}
+		}
+	}
+
+	public static function renew_watches_static() {
+		$instance = new self();
+		$instance->renew_watches();
+	}
+
 	private function get_timezone() {
 		global $wpdb;
 		$table = $wpdb->prefix . 'osb_settings';

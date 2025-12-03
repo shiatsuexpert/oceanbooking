@@ -52,7 +52,10 @@ $services = $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}osb_services" );
         <div class="row">
             <div class="col-md-6">
                 <label class="form-label">Datum</label>
-                <input type="date" id="osb-date-picker" class="form-control" onchange="osbApp.fetchSlots()">
+                <!-- Hidden input to store selected date -->
+                <input type="hidden" id="osb-date-picker">
+                <!-- Custom Calendar Container -->
+                <div id="osb-calendar-container" class="osb-calendar"></div>
             </div>
             <div class="col-md-6">
                 <label class="form-label">Uhrzeit</label>

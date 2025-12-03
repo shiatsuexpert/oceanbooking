@@ -12,7 +12,40 @@ const osbApp = {
     init: function () {
         // Set min date to today
         const today = new Date().toISOString().split('T')[0];
-        document.getElementById('osb-date-picker').setAttribute('min', today);
+        const datePicker = document.getElementById('osb-date-picker');
+        datePicker.setAttribute('min', today);
+
+        // Add event listener for month change (if possible with native picker?)
+        // Native date pickers don't easily expose month change events.
+        // But we can fetch current month on load and when value changes.
+        // Actually, for native pickers, we can't easily gray out specific dates visually 
+        // without a custom UI or using the `step` attribute which doesn't help here.
+        // Wait, the requirement was "show booked out days".
+        // Native HTML5 date inputs don't support disabling specific dates.
+        // We might need to switch to a custom date picker library (like Flatpickr) or just show a list?
+        // The user's screenshot showed a custom-looking picker (or maybe it was just a mock?).
+        // If we are using native <input type="date">, we CANNOT gray out days.
+        // Let's check the template.
+
+        // Assuming we might need to switch to a custom picker later, but for now let's implement the logic 
+        // and maybe just validate on selection? 
+        // OR, if the user provided image showed a calendar, maybe we are supposed to build one?
+        // The user said "As soon as the user clicks on the arrow right (next month)". 
+        // This implies a custom picker. 
+        // But the current code uses <input type="date">.
+        // Let's assume for now we just pre-fetch and maybe show a visual indication below?
+        // OR, we are expected to implement a custom picker.
+        // Given the "premium" requirement, a custom picker is likely needed.
+        // But that's a big change.
+        // Let's look at the screenshot again.
+        // The screenshot shows a custom calendar UI.
+        // So I need to implement a custom calendar UI or use a library.
+        // Since I can't easily add a library without npm/build, I might need to build a simple one 
+        // or use a CDN link if allowed. 
+        // But the prompt says "Vanilla JS".
+        // I will build a simple custom calendar UI to replace the native input.
+
+        this.renderCalendar(new Date());
 
         // Check URL Params
         const urlParams = new URLSearchParams(window.location.search);
@@ -22,6 +55,137 @@ const osbApp = {
         if (action && token) {
             this.handleExternalAction(action, token);
         }
+    },
+
+    renderCalendar: function (date) {
+        const container = document.getElementById('osb-calendar-container');
+        if (!container) return;
+
+        const year = date.getFullYear();
+        const month = date.getMonth();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        this.state.currentYear = year;
+        this.state.currentMonth = month;
+
+        // Fetch availability if not cached for this month
+        // We do this async, but render calendar immediately
+        this.fetchMonthlyAvailability(year, month);
+
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const daysInMonth = lastDay.getDate();
+        const startingDay = (firstDay.getDay() + 6) % 7; // Adjust for Monday start (0=Mon, 6=Sun)
+
+        const monthNames = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+
+        let html = `
+            <div class="osb-calendar-header">
+                <button class="btn btn-sm btn-outline-secondary" onclick="osbApp.prevMonth()">&lt;</button>
+                <span class="fw-bold">${monthNames[month]} ${year}</span>
+                <button class="btn btn-sm btn-outline-secondary" onclick="osbApp.nextMonth()">&gt;</button>
+            </div>
+            <div class="osb-calendar-grid">
+                <div class="osb-calendar-day-header">Mo</div>
+                <div class="osb-calendar-day-header">Di</div>
+                <div class="osb-calendar-day-header">Mi</div>
+                <div class="osb-calendar-day-header">Do</div>
+                <div class="osb-calendar-day-header">Fr</div>
+                <div class="osb-calendar-day-header">Sa</div>
+                <div class="osb-calendar-day-header">So</div>
+        `;
+
+        // Empty cells
+        for (let i = 0; i < startingDay; i++) {
+            html += `<div class="osb-calendar-day osb-day-empty"></div>`;
+        }
+
+        // Days
+        for (let day = 1; day <= daysInMonth; day++) {
+            const currentDayDate = new Date(year, month, day);
+            const dateStr = currentDayDate.toISOString().split('T')[0];
+
+            let classes = 'osb-calendar-day';
+            let onclick = `onclick="osbApp.selectDate('${dateStr}')"`;
+
+            // Check if past
+            if (currentDayDate < today) {
+                classes += ' osb-day-disabled';
+                onclick = '';
+            }
+
+            // Check if today
+            if (currentDayDate.getTime() === today.getTime()) {
+                classes += ' osb-day-today';
+            }
+
+            // Check if selected
+            if (this.state.date === dateStr) {
+                classes += ' osb-day-selected';
+            }
+
+            // Check Availability (Booked Out)
+            // We check this.state.monthlyAvailability which is populated by fetchMonthlyAvailability
+            if (this.state.monthlyAvailability && this.state.monthlyAvailability[dateStr] === true) {
+                classes += ' osb-day-booked';
+                onclick = ''; // Disable click
+            }
+
+            html += `<div class="${classes}" ${onclick} data-date="${dateStr}">${day}</div>`;
+        }
+
+        html += `</div>`;
+        container.innerHTML = html;
+    },
+
+    prevMonth: function () {
+        const newDate = new Date(this.state.currentYear, this.state.currentMonth - 1, 1);
+        // Prevent going back before today? 
+        // Simple check: if new month end is before today, maybe allow viewing but disable days?
+        // Let's just render.
+        this.renderCalendar(newDate);
+    },
+
+    nextMonth: function () {
+        const newDate = new Date(this.state.currentYear, this.state.currentMonth + 1, 1);
+        this.renderCalendar(newDate);
+    },
+
+    selectDate: function (dateStr) {
+        this.state.date = dateStr;
+        document.getElementById('osb-date-picker').value = dateStr;
+
+        // Re-render to update selection highlight
+        this.renderCalendar(new Date(this.state.currentYear, this.state.currentMonth, 1));
+
+        // Fetch slots
+        this.fetchSlots();
+    },
+
+    updateCalendarUI: function () {
+        // Re-render with new availability data
+        if (this.state.currentYear && this.state.currentMonth !== undefined) {
+            this.renderCalendar(new Date(this.state.currentYear, this.state.currentMonth, 1));
+        }
+    },
+
+    prefetchAvailability: function () {
+        // Fetch next 14 days (Existing logic)
+        // ...
+    },
+
+    fetchMonthlyAvailability: function (year, month) {
+        if (!this.state.serviceId) return;
+
+        const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
+
+        fetch(`${osbData.apiUrl}availability/month?service_id=${this.state.serviceId}&month=${monthStr}`)
+            .then(res => res.json())
+            .then(data => {
+                this.state.monthlyAvailability = data;
+                this.updateCalendarUI(); // This assumes we have a custom UI
+            });
     },
 
     handleExternalAction: function (action, token) {

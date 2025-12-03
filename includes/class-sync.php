@@ -131,6 +131,52 @@ class Ocean_Shiatsu_Booking_Sync {
 		}
 	}
 
+	public function calculate_monthly_availability( $month ) {
+		// $month format: YYYY-MM
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'osb_availability_index';
+		
+		$start_date = $month . '-01';
+		$end_date = date( 'Y-m-t', strtotime( $start_date ) );
+		
+		$services = $wpdb->get_results( "SELECT id FROM {$wpdb->prefix}osb_services" );
+		$clustering = new Ocean_Shiatsu_Booking_Clustering();
+
+		$current = strtotime( $start_date );
+		$end = strtotime( $end_date );
+
+		while ( $current <= $end ) {
+			$date = date( 'Y-m-d', $current );
+			
+			foreach ( $services as $service ) {
+				// This is heavy if done for 30 days * N services.
+				// But it runs in background via Cron or Webhook.
+				// Optimization: get_available_slots already caches GCal events for the day?
+				// Actually get_available_slots calls get_events_for_date which caches for 60s.
+				// But here we are looping 30 days.
+				// We should pre-fetch GCal events for the whole month range ONCE.
+				// But Clustering class doesn't support range injection yet.
+				// For now, let's rely on the fact that get_available_slots works.
+				// It might be slow (30 API calls if no cache).
+				// Wait! get_available_slots calls $gcal->get_events_for_date($date).
+				// We should optimize GCal class to support range caching or pre-fetching.
+				// But for now, let's implement the logic.
+				
+				$slots = $clustering->get_available_slots( $date, $service->id );
+				$is_fully_booked = empty( $slots ) ? 1 : 0;
+
+				// Upsert
+				$wpdb->query( $wpdb->prepare(
+					"INSERT INTO $table_name (date, service_id, is_fully_booked, last_updated) 
+					 VALUES (%s, %d, %d, NOW()) 
+					 ON DUPLICATE KEY UPDATE is_fully_booked = VALUES(is_fully_booked), last_updated = NOW()",
+					$date, $service->id, $is_fully_booked
+				) );
+			}
+			$current = strtotime( '+1 day', $current );
+		}
+	}
+
 	private function update_sync_token() {
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'osb_settings';

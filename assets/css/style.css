@@ -34,3 +34,70 @@
     padding: 0.75rem;
     font-size: 1.1rem;
 }
+
+/* Custom Calendar Styles */
+.osb-calendar {
+    border: 1px solid #eee;
+    border-radius: 8px;
+    padding: 1rem;
+    background: #fff;
+}
+
+.osb-calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.osb-calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 5px;
+    text-align: center;
+}
+
+.osb-calendar-day-header {
+    font-weight: bold;
+    color: #6c757d;
+    padding: 5px 0;
+    font-size: 0.9rem;
+}
+
+.osb-calendar-day {
+    padding: 10px 0;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+    font-size: 1rem;
+}
+
+.osb-calendar-day:hover:not(.osb-day-disabled):not(.osb-day-booked) {
+    background-color: #e9ecef;
+}
+
+.osb-day-selected {
+    background-color: var(--bs-primary) !important;
+    color: #fff !important;
+}
+
+.osb-day-today {
+    border: 1px solid var(--bs-primary);
+    color: var(--bs-primary);
+}
+
+.osb-day-disabled {
+    color: #ccc;
+    cursor: not-allowed;
+}
+
+.osb-day-booked {
+    color: #ccc;
+    text-decoration: line-through;
+    cursor: not-allowed;
+    background-color: #f8f9fa;
+}
+
+.osb-day-empty {
+    cursor: default;
+}

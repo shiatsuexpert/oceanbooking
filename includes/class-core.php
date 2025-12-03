@@ -48,6 +48,12 @@ class Ocean_Shiatsu_Booking_Core {
 
 		$sync = new Ocean_Shiatsu_Booking_Sync();
 		$sync->init();
+
+		// Schedule Watch Renewal
+		if ( ! wp_next_scheduled( 'osb_cron_renew_watches' ) ) {
+			wp_schedule_event( time(), 'daily', 'osb_cron_renew_watches' );
+		}
+		add_action( 'osb_cron_renew_watches', array( 'Ocean_Shiatsu_Booking_Google_Calendar', 'renew_watches_static' ) );
 	}
 
 	/**

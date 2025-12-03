@@ -560,8 +560,8 @@ class Ocean_Shiatsu_Booking_Admin {
 		$new_start = $date . ' ' . $time . ':00';
 		
 		// Calculate new end time (fetch duration first)
-		$appt = $wpdb->get_row( "SELECT * FROM {$wpdb->prefix}osb_appointments WHERE id = $id" );
-		$service_duration = $wpdb->get_var( "SELECT duration_minutes FROM {$wpdb->prefix}osb_services WHERE id = {$appt->service_id}" );
+		$appt = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}osb_appointments WHERE id = %d", $id ) );
+		$service_duration = $wpdb->get_var( $wpdb->prepare( "SELECT duration_minutes FROM {$wpdb->prefix}osb_services WHERE id = %d", $appt->service_id ) );
 		$new_end = date( 'Y-m-d H:i:s', strtotime( $new_start ) + ( $service_duration * 60 ) );
 
 		// Update DB - Store as Proposal

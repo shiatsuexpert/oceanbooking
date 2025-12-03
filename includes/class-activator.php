@@ -73,11 +73,25 @@ class Ocean_Shiatsu_Booking_Activator {
 			PRIMARY KEY  (id)
 		) $charset_collate;";
 
+		// Availability Index Table (for Monthly View)
+		$table_name_availability = $wpdb->prefix . 'osb_availability_index';
+		$sql_availability = "CREATE TABLE $table_name_availability (
+			id mediumint(9) NOT NULL AUTO_INCREMENT,
+			date date NOT NULL,
+			service_id mediumint(9) NOT NULL,
+			is_fully_booked boolean DEFAULT 0 NOT NULL,
+			last_updated datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY date_service (date, service_id),
+			KEY date (date)
+		) $charset_collate;";
+
 		require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
 		dbDelta( $sql_appointments );
 		dbDelta( $sql_logs );
 		dbDelta( $sql_services );
 		dbDelta( $sql_settings );
+		dbDelta( $sql_availability );
 
 		// Insert default services if table is empty
 		$count = $wpdb->get_var( "SELECT COUNT(*) FROM $table_name_services" );

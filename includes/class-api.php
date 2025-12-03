@@ -44,6 +44,18 @@ class Ocean_Shiatsu_Booking_API {
 			'callback' => array( $this, 'respond_proposal' ),
 			'permission_callback' => array( $this, 'verify_nonce' ),
 		) );
+
+		register_rest_route( 'osb/v1', '/gcal-webhook', array(
+			'methods'  => 'POST',
+			'callback' => array( $this, 'handle_webhook' ),
+			'permission_callback' => '__return_true', // Verified via token in header
+		) );
+
+		register_rest_route( 'osb/v1', '/availability/month', array(
+			'methods'  => 'GET',
+			'callback' => array( $this, 'get_monthly_availability' ),
+			'permission_callback' => '__return_true', // Public
+		) );
 	}
 
 	public function verify_nonce( $request ) {
@@ -388,6 +400,81 @@ class Ocean_Shiatsu_Booking_API {
 		}
 
 		return rest_ensure_response( array( 'success' => true, 'action' => $action ) );
+	}
+
+	public function handle_webhook( $request ) {
+		$channel_id = $request->get_header( 'X-Goog-Channel-ID' );
+		$resource_id = $request->get_header( 'X-Goog-Resource-ID' );
+		$resource_state = $request->get_header( 'X-Goog-Resource-State' );
+		$token = $request->get_header( 'X-Goog-Channel-Token' );
+
+		// 1. Verify Token
+		$stored_token = get_option( 'osb_webhook_token' );
+		if ( ! $stored_token || ! hash_equals( $stored_token, $token ) ) {
+			return new WP_Error( 'forbidden', 'Invalid token', array( 'status' => 403 ) );
+		}
+
+		// 2. Acknowledge Sync
+		if ( $resource_state === 'sync' ) {
+			return rest_ensure_response( array( 'status' => 'ok' ) );
+		}
+
+		// 3. Handle Updates
+		if ( $resource_state === 'exists' ) {
+			// Extract Calendar ID from URI or Channel ID mapping
+			$channels = get_option( 'osb_watch_channels', [] );
+			$calendar_id = null;
+
+			foreach ( $channels as $cal_id => $channel_data ) {
+				if ( $channel_data['channel_id'] === $channel_id && $channel_data['resource_id'] === $resource_id ) {
+					$calendar_id = $cal_id;
+					break;
+				}
+			}
+
+			if ( $calendar_id ) {
+				// Trigger Sync
+				$sync = new Ocean_Shiatsu_Booking_Sync();
+				$sync->sync_events(); 
+				
+				// Update monthly availability index
+				$current_month = date('Y-m');
+				$next_month = date('Y-m', strtotime('+1 month'));
+				$sync->calculate_monthly_availability( $current_month );
+				$sync->calculate_monthly_availability( $next_month );
+			}
+		}
+
+		return rest_ensure_response( array( 'status' => 'ok' ) );
+	}
+
+	public function get_monthly_availability( $request ) {
+		$service_id = $request->get_param( 'service_id' );
+		$month = $request->get_param( 'month' ); // YYYY-MM
+
+		if ( ! $service_id || ! $month ) {
+			return new WP_Error( 'missing_params', 'Service ID and Month required', array( 'status' => 400 ) );
+		}
+
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'osb_availability_index';
+		
+		// Validate month format
+		$start_date = $month . '-01';
+		$end_date = date( 'Y-m-t', strtotime( $start_date ) );
+
+		$results = $wpdb->get_results( $wpdb->prepare(
+			"SELECT date, is_fully_booked FROM $table_name 
+			 WHERE service_id = %d AND date BETWEEN %s AND %s",
+			$service_id, $start_date, $end_date
+		) );
+
+		$availability = [];
+		foreach ( $results as $row ) {
+			$availability[ $row->date ] = (bool) $row->is_fully_booked;
+		}
+
+		return rest_ensure_response( $availability );
 	}
 
 	private function check_rate_limit() {
