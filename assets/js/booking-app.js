@@ -5,7 +5,8 @@ const osbApp = {
         serviceDuration: null,
         serviceName: null,
         date: null,
-        time: null
+        time: null,
+        availabilityCache: {} // Cache for pre-fetched slots
     },
 
     init: function () {
@@ -96,14 +97,6 @@ const osbApp = {
                     this.state.serviceName = booking.service_name;
                     this.state.serviceDuration = booking.duration_minutes;
 
-                    // We need duration. It might be in booking object if we joined, 
-                    // or we fetch it. For now let's assume the API returns it or we re-fetch services.
-                    // Actually, the API I wrote returns service_name but not duration. 
-                    // Let's assume standard duration for now or fetch it.
-                    // Ideally API should return duration.
-                    // Workaround: We will fetch availability with service_id, backend knows duration.
-                    // But we need it for display? Not strictly.
-
                     alert(`Termin verschieben: ${booking.service_name}. Bitte wählen Sie ein neues Datum.`);
 
                     // Skip to Step 2
@@ -111,6 +104,7 @@ const osbApp = {
                     document.getElementById('step-2').classList.remove('d-none');
                     this.state.step = 2;
                     this.updateProgress();
+                    this.prefetchAvailability(); // Start pre-fetching
 
                     // Update Header
                     document.querySelector('#step-2 h3').innerText = 'Neuen Termin wählen';
@@ -127,6 +121,27 @@ const osbApp = {
         this.nextStep();
     },
 
+    prefetchAvailability: function () {
+        // Fetch next 14 days
+        const today = new Date();
+        const endDate = new Date();
+        endDate.setDate(today.getDate() + 14);
+
+        const startStr = today.toISOString().split('T')[0];
+        const endStr = endDate.toISOString().split('T')[0];
+
+        console.log('Pre-fetching availability:', startStr, 'to', endStr);
+
+        fetch(`${osbData.apiUrl}availability?start_date=${startStr}&end_date=${endStr}&service_id=${this.state.serviceId}`)
+            .then(response => response.json())
+            .then(data => {
+                // Store in cache
+                this.state.availabilityCache = { ...this.state.availabilityCache, ...data };
+                console.log('Availability cached for 14 days');
+            })
+            .catch(err => console.error('Pre-fetch failed', err));
+    },
+
     fetchSlots: function () {
         const dateInput = document.getElementById('osb-date-picker');
         const date = dateInput.value;
@@ -138,27 +153,43 @@ const osbApp = {
         // Show loading
         container.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-primary spinner-border-sm"></div></div>';
 
+        // Check Cache First
+        if (this.state.availabilityCache[date]) {
+            console.log('Using cached availability for', date);
+            this.renderSlots(this.state.availabilityCache[date]);
+            return;
+        }
+
+        // Fallback to Live Fetch
+        console.log('Cache miss, fetching live for', date);
         fetch(`${osbData.apiUrl}availability?date=${date}&service_id=${this.state.serviceId}`)
             .then(response => response.json())
             .then(slots => {
-                container.innerHTML = '';
-                if (slots.length === 0) {
-                    container.innerHTML = '<div class="alert alert-warning text-center">Keine Termine verfügbar.</div>';
-                    return;
-                }
-
-                slots.forEach(time => {
-                    const btn = document.createElement('button');
-                    btn.className = 'btn btn-outline-secondary w-100 mb-2 text-start';
-                    btn.innerHTML = `<strong>${time}</strong> Uhr`;
-                    btn.onclick = () => this.selectTime(time);
-                    container.appendChild(btn);
-                });
+                // Cache this single date too
+                this.state.availabilityCache[date] = slots;
+                this.renderSlots(slots);
             })
             .catch(err => {
                 console.error(err);
                 container.innerHTML = '<div class="text-danger">Fehler beim Laden der Termine.</div>';
             });
+    },
+
+    renderSlots: function (slots) {
+        const container = document.getElementById('osb-time-slots');
+        container.innerHTML = '';
+        if (slots.length === 0) {
+            container.innerHTML = '<div class="alert alert-warning text-center">Keine Termine verfügbar.</div>';
+            return;
+        }
+
+        slots.forEach(time => {
+            const btn = document.createElement('button');
+            btn.className = 'btn btn-outline-secondary w-100 mb-2 text-start';
+            btn.innerHTML = `<strong>${time}</strong> Uhr`;
+            btn.onclick = () => this.selectTime(time);
+            container.appendChild(btn);
+        });
     },
 
     selectTime: function (time) {
@@ -244,6 +275,11 @@ const osbApp = {
         this.state.step++;
         document.getElementById(`step-${this.state.step}`).classList.remove('d-none');
         this.updateProgress();
+
+        // Pre-fetch availability when entering Step 2
+        if (this.state.step === 2 && this.state.serviceId) {
+            this.prefetchAvailability();
+        }
     },
 
     prevStep: function () {

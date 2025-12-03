@@ -275,25 +275,25 @@ class Ocean_Shiatsu_Booking_Admin {
 	public function display_plugin_setup_page() {
 		// Handle Actions
 		if ( isset( $_POST['osb_propose_submit'] ) && isset( $_POST['booking_id'] ) ) {
-			check_admin_referer( 'osb_propose_verify' );
+			check_admin_referer( 'osb_propose_verify', 'osb_propose_submit' );
 			$this->handle_proposal_submission();
 		}
 
 		// Handle Sync
 		if ( isset( $_POST['osb_sync_gcal'] ) ) {
-			check_admin_referer( 'osb_sync_verify' );
+			check_admin_referer( 'osb_sync_verify', 'osb_sync_gcal' );
 			$this->handle_gcal_sync();
 		}
 
 		// Handle Accept Reschedule
 		if ( isset( $_POST['osb_accept_reschedule'] ) ) {
-			check_admin_referer( 'osb_accept_reschedule_verify' );
+			check_admin_referer( 'osb_accept_reschedule_verify', 'osb_accept_reschedule' );
 			$this->handle_accept_reschedule();
 		}
 
 		// Handle Revoke Proposal
 		if ( isset( $_POST['osb_revoke_proposal'] ) ) {
-			check_admin_referer( 'osb_revoke_proposal_verify' );
+			check_admin_referer( 'osb_revoke_proposal_verify', 'osb_revoke_proposal' );
 			$this->handle_revoke_proposal();
 		}
 
@@ -585,7 +585,7 @@ class Ocean_Shiatsu_Booking_Admin {
 	public function display_settings_page() {
 		// Handle Settings Save
 		if ( isset( $_POST['osb_save_settings'] ) ) {
-			check_admin_referer( 'osb_save_settings_verify' );
+			check_admin_referer( 'osb_save_settings_verify', 'osb_save_settings' );
 			
 			// Save Booking Page
 			if ( isset( $_POST['booking_page_id'] ) ) {
@@ -599,7 +599,7 @@ class Ocean_Shiatsu_Booking_Admin {
 
 		// Handle Disconnect
 		if ( isset( $_POST['osb_disconnect'] ) ) {
-			check_admin_referer( 'osb_disconnect_verify' );
+			check_admin_referer( 'osb_disconnect_verify', 'osb_disconnect' );
 			$this->handle_disconnect();
 			Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Admin', 'GCal Disconnected' );
 			echo '<div class="notice notice-success"><p>Google Calendar disconnected.</p></div>';
@@ -607,7 +607,7 @@ class Ocean_Shiatsu_Booking_Admin {
 
 		// Handle Calendar Selection Save
 		if ( isset( $_POST['osb_save_calendars'] ) ) {
-			check_admin_referer( 'osb_save_calendars_verify' );
+			check_admin_referer( 'osb_save_calendars_verify', 'osb_save_calendars' );
 			$selected_calendars = isset( $_POST['gcal_calendars'] ) ? array_map( 'sanitize_text_field', $_POST['gcal_calendars'] ) : [];
 			$this->update_setting( 'gcal_selected_calendars', json_encode( $selected_calendars ) );
 			Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Admin', 'Calendars Selected', $selected_calendars );
@@ -646,6 +646,7 @@ class Ocean_Shiatsu_Booking_Admin {
 								'selected' => $booking_page_id,
 								'show_option_none' => 'Select Page',
 								'option_none_value' => 0,
+								'post_status' => array( 'publish', 'private', 'draft' ),
 							) );
 							?>
 							<p class="description">Select the page where the <code>[ocean_shiatsu_booking]</code> shortcode is placed.</p>

@@ -116,10 +116,12 @@ class Ocean_Shiatsu_Booking_API {
 
 	public function get_availability( $request ) {
 		$date = $request->get_param( 'date' );
+		$start_date = $request->get_param( 'start_date' );
+		$end_date = $request->get_param( 'end_date' );
 		$service_id = $request->get_param( 'service_id' );
 
-		if ( ! $date || ! $service_id ) {
-			return new WP_Error( 'missing_params', 'Date and Service ID are required', array( 'status' => 400 ) );
+		if ( ( ! $date && ( ! $start_date || ! $end_date ) ) || ! $service_id ) {
+			return new WP_Error( 'missing_params', 'Date (or start/end date) and Service ID are required', array( 'status' => 400 ) );
 		}
 
 		// Get duration from DB
@@ -132,8 +134,34 @@ class Ocean_Shiatsu_Booking_API {
 		}
 
 		$clustering = new Ocean_Shiatsu_Booking_Clustering();
-		$slots = $clustering->get_available_slots( $date, $service_id );
+		
+		// Handle Range Request
+		if ( $start_date && $end_date ) {
+			$cache_key = 'osb_avail_range_' . md5( $start_date . $end_date . $service_id );
+			$cached = get_transient( $cache_key );
+			if ( false !== $cached ) {
+				return rest_ensure_response( $cached );
+			}
 
+			$result = [];
+			$current = strtotime( $start_date );
+			$end = strtotime( $end_date );
+
+			while ( $current <= $end ) {
+				$d = date( 'Y-m-d', $current );
+				$slots = $clustering->get_available_slots( $d, $service_id );
+				if ( ! empty( $slots ) ) {
+					$result[ $d ] = $slots;
+				}
+				$current = strtotime( '+1 day', $current );
+			}
+
+			set_transient( $cache_key, $result, 3 * 60 ); // 3 minutes
+			return rest_ensure_response( $result );
+		}
+
+		// Handle Single Date Request
+		$slots = $clustering->get_available_slots( $date, $service_id );
 		return rest_ensure_response( $slots );
 	}
 
