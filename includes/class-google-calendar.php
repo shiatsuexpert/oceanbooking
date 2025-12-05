@@ -366,9 +366,7 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 			$channels[ $calendar_id ] = [
 				'channel_id' => $result->getId(),
 				'resource_id' => $result->getResourceId(),
-				'expiration' => ( time() + 600000 ), // Approx 7 days, store local expiration slightly earlier to be safe? 
-				// Google returns expiration in header or body? The response is a Channel object.
-				// The response usually contains expiration.
+				// 'expiration' => ( time() + 600000 ), // Removed confusing hardcoded value
 				'expiration_ts' => $result->getExpiration() / 1000 // Convert ms to seconds
 			];
 			update_option( 'osb_watch_channels', $channels );

@@ -49,7 +49,7 @@ class Ocean_Shiatsu_Booking_Emails {
 		// Actually, we can just link to site_url() and append params, assuming the shortcode is on the front page or user configures it.
 		// Get Booking Page URL
 		$booking_page_id = $this->get_setting( 'booking_page_id' );
-		$base_url = $booking_page_id ? get_permalink( $booking_page_id ) : site_url( '/booking' );
+		$base_url = $booking_page_id ? get_permalink( $booking_page_id ) : home_url();
 		
 		$reschedule_link = add_query_arg( ['action' => 'reschedule', 'token' => $appt->token], $base_url );
 		$cancel_link = add_query_arg( ['action' => 'cancel', 'token' => $appt->token], $base_url );
@@ -119,14 +119,18 @@ class Ocean_Shiatsu_Booking_Emails {
 		$formatted_time = date( 'd.m.Y H:i', strtotime( $new_start_time ) );
 		
 		$booking_page_id = $this->get_setting( 'booking_page_id' );
-		$base_url = $booking_page_id ? get_permalink( $booking_page_id ) : site_url( '/booking' );
+		$base_url = $booking_page_id ? get_permalink( $booking_page_id ) : home_url();
 
 		$accept_link = add_query_arg( ['action' => 'accept_proposal', 'token' => $appt->token], $base_url );
 		$decline_link = add_query_arg( ['action' => 'decline_proposal', 'token' => $appt->token], $base_url );
 
 		$message = '<html><body>';
 		$message .= "<h2>Neue Terminzeit vorgeschlagen</h2>";
-		$message .= "<p>Hallo {$appt->client_name},</p>";
+		$greeting = "Hallo {$appt->client_name},";
+		if ( ! empty( $appt->client_last_name ) ) {
+			$greeting = "Hallo " . trim( $appt->client_salutation . ' ' . $appt->client_last_name ) . ",";
+		}
+		$message .= "<p>$greeting</p>";
 		$message .= "<p>Leider klappt der ursprünglich angefragte Termin nicht.</p>";
 		$message .= "<p>Ich schlage stattdessen folgenden Termin vor:</p>";
 		$message .= "<h3>$formatted_time Uhr</h3>";

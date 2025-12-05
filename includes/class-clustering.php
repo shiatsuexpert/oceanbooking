@@ -114,6 +114,21 @@ class Ocean_Shiatsu_Booking_Clustering {
 			if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Clustering', "Google Calendar is active. Processing GCal events." );
 			// GCal is active: Use its events
 			foreach ( $gcal_events as $event ) {
+				// Check if it's an all-day event (no dateTime)
+				if ( ! isset( $event['start']['dateTime'] ) ) {
+					// All-day event: Block entire day? 
+					// For now, let's assume all-day events block the whole day if they are marked as 'busy' in GCal (which we don't check here yet, but we should).
+					// Or we can just skip them if they are just "Holidays" which are handled in calculate_monthly_availability.
+					// But if it's a specific "Blocker" event, we should probably respect it.
+					// Let's block 00:00 to 23:59 for now to be safe.
+					$busy[] = [
+						'start' => '00:00',
+						'end'   => '23:59',
+					];
+					if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Clustering', "GCal All-Day Event: Blocking full day" );
+					continue;
+				}
+
 				$start_gcal = date( 'H:i', strtotime( $event['start']['dateTime'] ) );
 				$end_gcal = date( 'H:i', strtotime( $event['end']['dateTime'] ) );
 				$busy[] = [
@@ -131,8 +146,10 @@ class Ocean_Shiatsu_Booking_Clustering {
 		// We need to fetch proposed times too if status is admin_proposal
 		$local_appts = $wpdb->get_results( $wpdb->prepare(
 			"SELECT start_time, end_time, proposed_start_time, proposed_end_time, status, gcal_event_id FROM $table_name 
-			WHERE (start_time >= %s AND start_time <= %s)
-			OR (proposed_start_time >= %s AND proposed_start_time <= %s AND status = 'admin_proposal')
+			WHERE (
+				(start_time >= %s AND start_time <= %s)
+				OR (proposed_start_time >= %s AND proposed_start_time <= %s AND status = 'admin_proposal')
+			)
 			AND status NOT IN ('cancelled', 'rejected')",
 			$date . ' 00:00:00',
 			$date . ' 23:59:59',

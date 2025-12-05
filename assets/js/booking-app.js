@@ -181,10 +181,7 @@ const osbApp = {
         }
     },
 
-    prefetchAvailability: function () {
-        // Fetch next 14 days (Existing logic)
-        // ...
-    },
+
 
     fetchMonthlyAvailability: function (year, month) {
         if (!this.state.serviceId) return;
@@ -196,6 +193,9 @@ const osbApp = {
             .then(data => {
                 this.state.monthlyAvailability = data;
                 this.updateCalendarUI(); // This assumes we have a custom UI
+            })
+            .catch(err => {
+                console.error('Failed to fetch monthly availability:', err);
             });
     },
 

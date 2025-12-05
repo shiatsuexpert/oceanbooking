@@ -242,13 +242,13 @@ class Ocean_Shiatsu_Booking_API {
 			$table_name,
 			array(
 				'service_id' => $params['service_id'],
-				'client_name' => $params['client_name'],
-				'client_salutation' => isset($params['client_salutation']) ? $params['client_salutation'] : '',
-				'client_first_name' => isset($params['client_first_name']) ? $params['client_first_name'] : '',
-				'client_last_name' => isset($params['client_last_name']) ? $params['client_last_name'] : '',
-				'client_email' => $params['client_email'],
-				'client_phone' => $params['client_phone'],
-				'client_notes' => isset($params['client_notes']) ? $params['client_notes'] : '',
+				'client_name' => sanitize_text_field( $params['client_name'] ),
+				'client_salutation' => isset($params['client_salutation']) ? sanitize_text_field( $params['client_salutation'] ) : '',
+				'client_first_name' => isset($params['client_first_name']) ? sanitize_text_field( $params['client_first_name'] ) : '',
+				'client_last_name' => isset($params['client_last_name']) ? sanitize_text_field( $params['client_last_name'] ) : '',
+				'client_email' => sanitize_email( $params['client_email'] ),
+				'client_phone' => sanitize_text_field( $params['client_phone'] ),
+				'client_notes' => isset($params['client_notes']) ? sanitize_textarea_field( $params['client_notes'] ) : '',
 				'start_time' => $start_time,
 				'end_time' => $end_time,
 				'status' => 'pending',
@@ -267,6 +267,7 @@ class Ocean_Shiatsu_Booking_API {
 
 		// 4. Sync to GCal (Pending)
 		$gcal = new Ocean_Shiatsu_Booking_Google_Calendar();
+		$params['service_name'] = $service->name; // Add service name for GCal event title
 		$event_id = $gcal->create_event( $params ); // Pass necessary data
 		$wpdb->update( $table_name, ['gcal_event_id' => $event_id], ['id' => $booking_id] );
 
