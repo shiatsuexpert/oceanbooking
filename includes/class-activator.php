@@ -19,6 +19,9 @@ class Ocean_Shiatsu_Booking_Activator {
 			id mediumint(9) NOT NULL AUTO_INCREMENT,
 			service_id mediumint(9) NOT NULL,
 			client_name tinytext NOT NULL,
+			client_salutation varchar(20) DEFAULT '' NOT NULL,
+			client_first_name tinytext NOT NULL,
+			client_last_name tinytext NOT NULL,
 			client_email VARCHAR(100) NOT NULL,
 			client_phone VARCHAR(50) NOT NULL,
 			client_notes text DEFAULT '',
@@ -79,6 +82,7 @@ class Ocean_Shiatsu_Booking_Activator {
 			id mediumint(9) NOT NULL AUTO_INCREMENT,
 			date date NOT NULL,
 			service_id mediumint(9) NOT NULL,
+			status varchar(20) DEFAULT 'available' NOT NULL,
 			is_fully_booked boolean DEFAULT 0 NOT NULL,
 			last_updated datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
 			PRIMARY KEY  (id),
@@ -92,6 +96,20 @@ class Ocean_Shiatsu_Booking_Activator {
 		dbDelta( $sql_services );
 		dbDelta( $sql_settings );
 		dbDelta( $sql_availability );
+
+		// Migration: Add 'status' column if missing (for existing installs)
+		$row = $wpdb->get_results(  "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '$table_name_availability' AND column_name = 'status'"  );
+		if ( empty( $row ) ) {
+			$wpdb->query( "ALTER TABLE $table_name_availability ADD status varchar(20) DEFAULT 'available' NOT NULL AFTER service_id" );
+		}
+
+		// Migration: Add split name columns if missing
+		$row_appt = $wpdb->get_results( "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '$table_name_appointments' AND column_name = 'client_first_name'" );
+		if ( empty( $row_appt ) ) {
+			$wpdb->query( "ALTER TABLE $table_name_appointments ADD client_salutation varchar(20) DEFAULT '' NOT NULL AFTER client_name" );
+			$wpdb->query( "ALTER TABLE $table_name_appointments ADD client_first_name tinytext NOT NULL AFTER client_salutation" );
+			$wpdb->query( "ALTER TABLE $table_name_appointments ADD client_last_name tinytext NOT NULL AFTER client_first_name" );
+		}
 
 		// Insert default services if table is empty
 		$count = $wpdb->get_var( "SELECT COUNT(*) FROM $table_name_services" );

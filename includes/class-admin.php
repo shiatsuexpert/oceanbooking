@@ -332,7 +332,13 @@ class Ocean_Shiatsu_Booking_Admin {
 						<tr>
 							<td><?php echo $appt->id; ?></td>
 							<td>
-								<?php echo esc_html( $appt->client_name ); ?>
+								<?php 
+								if ( ! empty( $appt->client_first_name ) ) {
+									echo esc_html( trim( $appt->client_salutation . ' ' . $appt->client_first_name . ' ' . $appt->client_last_name ) );
+								} else {
+									echo esc_html( $appt->client_name ); 
+								}
+								?>
 								<?php if ( $appt->service_id == 0 ) echo ' <span class="dashicons dashicons-google" title="Imported from Google"></span>'; ?>
 								<br><small><?php echo esc_html( $appt->client_email ); ?></small>
 							</td>
@@ -697,6 +703,37 @@ class Ocean_Shiatsu_Booking_Admin {
 						</td>
 					</tr>
 				</table>
+
+				<h2>Availability & Holiday Settings</h2>
+				<table class="form-table">
+					<tr valign="top">
+						<th scope="row"><label for="max_bookings_per_day">Max Bookings Per Day</label></th>
+						<td>
+							<input type="number" name="max_bookings_per_day" id="max_bookings_per_day" 
+								value="<?php echo esc_attr( $this->get_setting( 'max_bookings_per_day' ) ?: '0' ); ?>" 
+								class="small-text" min="0">
+							<p class="description">Maximum number of bookings allowed per day. 0 = unlimited.</p>
+						</td>
+					</tr>
+					<tr valign="top">
+						<th scope="row"><label for="all_day_is_holiday">All-Day Events = Holiday</label></th>
+						<td>
+							<?php $all_day_is_holiday = $this->get_setting( 'all_day_is_holiday' ); ?>
+							<input type="checkbox" name="all_day_is_holiday" id="all_day_is_holiday" value="1" 
+								<?php checked( $all_day_is_holiday !== '0' ); ?>>
+							<label for="all_day_is_holiday">Treat all-day Google Calendar events as holidays (no bookings allowed).</label>
+						</td>
+					</tr>
+					<tr valign="top">
+						<th scope="row"><label for="holiday_keywords">Holiday Keywords</label></th>
+						<td>
+							<textarea name="holiday_keywords" id="holiday_keywords" rows="2" class="regular-text"><?php 
+								echo esc_textarea( $this->get_setting( 'holiday_keywords' ) ?: 'Holiday,Urlaub,Closed' ); 
+							?></textarea>
+							<p class="description">Comma-separated keywords. If any event title contains these words, the day is marked as a holiday.</p>
+						</td>
+					</tr>
+				</table>
 				
 				<?php submit_button( 'Save Settings' ); ?>
 			</form>
@@ -780,6 +817,15 @@ class Ocean_Shiatsu_Booking_Admin {
 
 		if ( isset( $_POST['timezone'] ) ) {
 			$this->update_setting( 'timezone', sanitize_text_field( $_POST['timezone'] ) );
+		}
+
+		// Holiday Settings
+		if ( isset( $_POST['max_bookings_per_day'] ) ) {
+			$this->update_setting( 'max_bookings_per_day', intval( $_POST['max_bookings_per_day'] ) );
+		}
+		$this->update_setting( 'all_day_is_holiday', isset( $_POST['all_day_is_holiday'] ) ? '1' : '0' );
+		if ( isset( $_POST['holiday_keywords'] ) ) {
+			$this->update_setting( 'holiday_keywords', sanitize_textarea_field( $_POST['holiday_keywords'] ) );
 		}
 
 		if ( isset( $_POST['gcal_client_id'] ) ) $this->update_setting( 'gcal_client_id', sanitize_text_field( $_POST['gcal_client_id'] ) );

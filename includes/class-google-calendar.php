@@ -109,11 +109,28 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 				$results = $this->service->events->listEvents( $cal_id, $optParams );
 				
 				foreach ( $results->getItems() as $event ) {
+					// Detect All-Day events or events spanning the entire day
+					$is_all_day = false;
+					if ( isset( $event->start->date ) && ! isset( $event->start->dateTime ) ) {
+						// Google Calendar "All-Day" checkbox event
+						$is_all_day = true;
+					} else if ( isset( $event->start->dateTime ) ) {
+						// Check if timed event spans entire day (e.g., 8am Day1 to 8pm Day3)
+						$event_start = strtotime( $event->start->dateTime );
+						$event_end = strtotime( $event->end->dateTime );
+						$day_start = strtotime( $date . ' 00:00:00' );
+						$day_end = strtotime( $date . ' 23:59:59' );
+						if ( $event_start <= $day_start && $event_end >= $day_end ) {
+							$is_all_day = true;
+						}
+					}
+
 					$all_events[] = [
 						'id' => $event->getId(),
 						'start' => $event->start,
 						'end' => $event->end,
-						'summary' => $event->getSummary()
+						'summary' => $event->getSummary(),
+						'is_all_day' => $is_all_day
 					];
 				}
 			} catch ( Exception $e ) {

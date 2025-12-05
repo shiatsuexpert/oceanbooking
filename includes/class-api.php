@@ -243,6 +243,9 @@ class Ocean_Shiatsu_Booking_API {
 			array(
 				'service_id' => $params['service_id'],
 				'client_name' => $params['client_name'],
+				'client_salutation' => isset($params['client_salutation']) ? $params['client_salutation'] : '',
+				'client_first_name' => isset($params['client_first_name']) ? $params['client_first_name'] : '',
+				'client_last_name' => isset($params['client_last_name']) ? $params['client_last_name'] : '',
 				'client_email' => $params['client_email'],
 				'client_phone' => $params['client_phone'],
 				'client_notes' => isset($params['client_notes']) ? $params['client_notes'] : '',
@@ -464,14 +467,14 @@ class Ocean_Shiatsu_Booking_API {
 		$end_date = date( 'Y-m-t', strtotime( $start_date ) );
 
 		$results = $wpdb->get_results( $wpdb->prepare(
-			"SELECT date, is_fully_booked FROM $table_name 
+			"SELECT date, status FROM $table_name 
 			 WHERE service_id = %d AND date BETWEEN %s AND %s",
 			$service_id, $start_date, $end_date
 		) );
 
 		$availability = [];
 		foreach ( $results as $row ) {
-			$availability[ $row->date ] = (bool) $row->is_fully_booked;
+			$availability[ $row->date ] = $row->status ?: 'available';
 		}
 
 		return rest_ensure_response( $availability );

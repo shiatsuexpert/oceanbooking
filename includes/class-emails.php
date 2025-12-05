@@ -60,7 +60,13 @@ class Ocean_Shiatsu_Booking_Emails {
 
 		$message = "<html><body>";
 		$message .= "<h2>Termin bestätigt</h2>";
-		$message .= "<p>Hallo {$appt->client_name},</p>";
+		
+		$greeting = "Hallo {$appt->client_name},";
+		if ( ! empty( $appt->client_last_name ) ) {
+			$greeting = "Hallo " . trim( $appt->client_salutation . ' ' . $appt->client_last_name ) . ",";
+		}
+		
+		$message .= "<p>$greeting</p>";
 		$message .= "<p>Ihr Termin wurde bestätigt.</p>";
 		$message .= "<p><strong>Wann:</strong> " . date( 'd.m.Y H:i', strtotime( $appt->start_time ) ) . "</p>";
 		$message .= "<br>";

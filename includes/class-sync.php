@@ -131,50 +131,123 @@ class Ocean_Shiatsu_Booking_Sync {
 		}
 	}
 
+	/**
+	 * Alias for run_sync() - Called by Webhook handler.
+	 */
+	public function sync_events() {
+		$this->run_sync();
+	}
+
 	public function calculate_monthly_availability( $month ) {
 		// $month format: YYYY-MM
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'osb_availability_index';
+		$settings_table = $wpdb->prefix . 'osb_settings';
 		
 		$start_date = $month . '-01';
 		$end_date = date( 'Y-m-t', strtotime( $start_date ) );
 		
 		$services = $wpdb->get_results( "SELECT id FROM {$wpdb->prefix}osb_services" );
 		$clustering = new Ocean_Shiatsu_Booking_Clustering();
+		$gcal = new Ocean_Shiatsu_Booking_Google_Calendar();
+
+		// Get Settings
+		$max_bookings = intval( $this->get_setting( 'max_bookings_per_day' ) ) ?: 0; // 0 = unlimited
+		$all_day_is_holiday = $this->get_setting( 'all_day_is_holiday' ) !== '0'; // Default true
+		$holiday_keywords_raw = $this->get_setting( 'holiday_keywords' ) ?: 'Holiday,Urlaub,Closed';
+		$holiday_keywords = array_map( 'trim', explode( ',', $holiday_keywords_raw ) );
+		
+		// Get Working Days
+		$working_days_json = $this->get_setting( 'working_days' );
+		$working_days = $working_days_json ? json_decode( $working_days_json, true ) : ['1','2','3','4','5'];
 
 		$current = strtotime( $start_date );
 		$end = strtotime( $end_date );
 
 		while ( $current <= $end ) {
 			$date = date( 'Y-m-d', $current );
+			$day_of_week = date( 'N', $current ); // 1 (Mon) - 7 (Sun)
 			
-			foreach ( $services as $service ) {
-				// This is heavy if done for 30 days * N services.
-				// But it runs in background via Cron or Webhook.
-				// Optimization: get_available_slots already caches GCal events for the day?
-				// Actually get_available_slots calls get_events_for_date which caches for 60s.
-				// But here we are looping 30 days.
-				// We should pre-fetch GCal events for the whole month range ONCE.
-				// But Clustering class doesn't support range injection yet.
-				// For now, let's rely on the fact that get_available_slots works.
-				// It might be slow (30 API calls if no cache).
-				// Wait! get_available_slots calls $gcal->get_events_for_date($date).
-				// We should optimize GCal class to support range caching or pre-fetching.
-				// But for now, let's implement the logic.
-				
-				$slots = $clustering->get_available_slots( $date, $service->id );
-				$is_fully_booked = empty( $slots ) ? 1 : 0;
+			// 1. Check if it's a Working Day
+			if ( ! in_array( (string)$day_of_week, $working_days ) ) {
+				// Closed Day
+				foreach ( $services as $service ) {
+					$this->upsert_availability( $table_name, $date, $service->id, 'closed' );
+				}
+				$current = strtotime( '+1 day', $current );
+				continue;
+			}
 
-				// Upsert
-				$wpdb->query( $wpdb->prepare(
-					"INSERT INTO $table_name (date, service_id, is_fully_booked, last_updated) 
-					 VALUES (%s, %d, %d, NOW()) 
-					 ON DUPLICATE KEY UPDATE is_fully_booked = VALUES(is_fully_booked), last_updated = NOW()",
-					$date, $service->id, $is_fully_booked
+			// 2. Check for Holiday (All-Day or Spanning Event)
+			$gcal_events = $gcal->get_events_for_date( $date );
+			$is_holiday = false;
+			
+			if ( is_array( $gcal_events ) ) {
+				foreach ( $gcal_events as $event ) {
+					// Check All-Day flag (from updated GCal class)
+					if ( ! empty( $event['is_all_day'] ) && $all_day_is_holiday ) {
+						$is_holiday = true;
+						break;
+					}
+					// Check Keyword Match
+					$summary = isset( $event['summary'] ) ? $event['summary'] : '';
+					foreach ( $holiday_keywords as $keyword ) {
+						if ( ! empty( $keyword ) && stripos( $summary, $keyword ) !== false ) {
+							$is_holiday = true;
+							break 2;
+						}
+					}
+				}
+			}
+
+			if ( $is_holiday ) {
+				foreach ( $services as $service ) {
+					$this->upsert_availability( $table_name, $date, $service->id, 'holiday' );
+				}
+				$current = strtotime( '+1 day', $current );
+				continue;
+			}
+
+			// 3. Check Availability per Service
+			foreach ( $services as $service ) {
+				$slots = $clustering->get_available_slots( $date, $service->id );
+				
+				// Check Max Bookings
+				$booking_count = $wpdb->get_var( $wpdb->prepare(
+					"SELECT COUNT(*) FROM {$wpdb->prefix}osb_appointments 
+					 WHERE DATE(start_time) = %s AND status NOT IN ('cancelled', 'rejected')",
+					$date
 				) );
+
+				$status = 'available';
+				if ( $max_bookings > 0 && $booking_count >= $max_bookings ) {
+					$status = 'booked';
+				} elseif ( empty( $slots ) ) {
+					$status = 'booked';
+				}
+
+				$this->upsert_availability( $table_name, $date, $service->id, $status );
 			}
 			$current = strtotime( '+1 day', $current );
 		}
+	}
+
+	private function upsert_availability( $table_name, $date, $service_id, $status ) {
+		global $wpdb;
+		$is_fully_booked = ( $status === 'booked' || $status === 'holiday' || $status === 'closed' ) ? 1 : 0;
+		
+		$wpdb->query( $wpdb->prepare(
+			"INSERT INTO $table_name (date, service_id, status, is_fully_booked, last_updated) 
+			 VALUES (%s, %d, %s, %d, NOW()) 
+			 ON DUPLICATE KEY UPDATE status = VALUES(status), is_fully_booked = VALUES(is_fully_booked), last_updated = NOW()",
+			$date, $service_id, $status, $is_fully_booked
+		) );
+	}
+
+	private function get_setting( $key ) {
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'osb_settings';
+		return $wpdb->get_var( $wpdb->prepare( "SELECT setting_value FROM $table_name WHERE setting_key = %s", $key ) );
 	}
 
 	private function update_sync_token() {

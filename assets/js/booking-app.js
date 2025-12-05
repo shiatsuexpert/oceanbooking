@@ -125,11 +125,22 @@ const osbApp = {
                 classes += ' osb-day-selected';
             }
 
-            // Check Availability (Booked Out)
-            // We check this.state.monthlyAvailability which is populated by fetchMonthlyAvailability
-            if (this.state.monthlyAvailability && this.state.monthlyAvailability[dateStr] === true) {
+            // Check Availability Status (available, booked, holiday, closed)
+            // this.state.monthlyAvailability now returns status strings
+            const status = this.state.monthlyAvailability ? this.state.monthlyAvailability[dateStr] : null;
+
+            if (status === 'holiday') {
+                classes += ' osb-day-holiday';
+                onclick = ''; // Not clickable
+            } else if (status === 'closed') {
+                classes += ' osb-day-closed';
+                onclick = ''; // Not clickable
+            } else if (status === 'booked') {
                 classes += ' osb-day-booked';
-                onclick = ''; // Disable click
+                onclick = `onclick="osbApp.showWaitlistOption('${dateStr}')"`; // Clickable for Waitlist
+            } else if (status === 'available' || !status) {
+                // Available (or unknown - treat as available)
+                classes += ' osb-day-available';
             }
 
             html += `<div class="${classes}" ${onclick} data-date="${dateStr}">${day}</div>`;
@@ -186,6 +197,12 @@ const osbApp = {
                 this.state.monthlyAvailability = data;
                 this.updateCalendarUI(); // This assumes we have a custom UI
             });
+    },
+
+    showWaitlistOption: function (dateStr) {
+        // Placeholder for Waitlist Feature
+        // In future: Open modal to collect waitlist signup
+        alert(`Dieser Tag (${dateStr}) ist leider ausgebucht. Wartelisten-Funktion kommt bald!`);
     },
 
     handleExternalAction: function (action, token) {
@@ -386,63 +403,88 @@ const osbApp = {
                 body: JSON.stringify(data)
             })
                 .then(res => res.json())
-                .then(result => {
+                .then(data => {
                     this.showLoading(false);
-                    if (result.success) {
-                        alert('Verschiebung angefragt. Sie erhalten eine Bestätigung per E-Mail.');
-                        window.location.reload();
+                    if (data.success) {
+                        alert('Termin erfolgreich verschoben!');
+                        window.location.href = window.location.pathname; // Reload/Clear
                     } else {
-                        alert('Fehler: ' + result.message);
+                        alert('Fehler: ' + data.message);
                     }
                 });
             return;
         }
 
+        // New Booking
+        // Combine Name Fields
+        const salutation = document.getElementById('client_salutation').value;
+        const firstName = document.getElementById('client_first_name').value;
+        const lastName = document.getElementById('client_last_name').value;
+        const fullName = `${salutation} ${firstName} ${lastName}`.trim();
+
         const data = {
             service_id: this.state.serviceId,
-            service_name: this.state.serviceName,
-            duration: this.state.serviceDuration,
+            duration: this.state.serviceDuration, // Required by API
             date: this.state.date,
             time: this.state.time,
-            client_name: document.getElementById('client_name').value,
+            client_name: fullName, // Combined for backend compatibility
+            client_salutation: salutation,
+            client_first_name: firstName,
+            client_last_name: lastName,
             client_email: document.getElementById('client_email').value,
             client_phone: document.getElementById('client_phone').value,
             client_notes: document.getElementById('client_notes').value
         };
 
-        fetch(`${osbData.apiUrl}booking`, {
+        fetch(`${osbData.apiUrl}book`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-WP-Nonce': osbData.nonce
-            },
+            headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': osbData.nonce },
             body: JSON.stringify(data)
         })
-            .then(response => response.json())
-            .then(result => {
+            .then(res => res.json())
+            .then(data => {
                 this.showLoading(false);
-                if (result.success) {
-                    this.nextStep(); // Go to success step
+                if (data.success) {
+                    this.nextStep(); // Show Success Step
                 } else {
-                    alert('Fehler: ' + (result.message || 'Buchung fehlgeschlagen'));
+                    alert('Fehler: ' + data.message);
                 }
             })
             .catch(err => {
                 this.showLoading(false);
-                alert('Ein unerwarteter Fehler ist aufgetreten.');
+                alert('Ein Fehler ist aufgetreten.');
                 console.error(err);
             });
     },
 
     nextStep: function () {
+        // Hide current step
         document.getElementById(`step-${this.state.step}`).classList.add('d-none');
         this.state.step++;
+        // Show next step
         document.getElementById(`step-${this.state.step}`).classList.remove('d-none');
         this.updateProgress();
 
         // Pre-fetch availability when entering Step 2
         if (this.state.step === 2 && this.state.serviceId) {
             this.prefetchAvailability();
+        }
+
+        // Populate Summary Card when entering Step 3
+        if (this.state.step === 3) {
+            document.getElementById('summary-service').innerText = this.state.serviceName || '-';
+            document.getElementById('summary-duration').innerText = (this.state.serviceDuration || '-') + ' Min.';
+
+            // Format Date (German)
+            if (this.state.date) {
+                const dateObj = new Date(this.state.date + 'T00:00:00');
+                const dateStr = dateObj.toLocaleDateString('de-DE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                document.getElementById('summary-date').innerText = dateStr;
+            } else {
+                document.getElementById('summary-date').innerText = '-';
+            }
+
+            document.getElementById('summary-time').innerText = this.state.time ? (this.state.time + ' Uhr') : '-';
         }
     },
 

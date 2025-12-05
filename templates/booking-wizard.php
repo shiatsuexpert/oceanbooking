@@ -74,30 +74,74 @@ $services = $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}osb_services" );
             <div style="width: 80px;"></div>
         </div>
 
-        <form id="osb-booking-form" onsubmit="osbApp.submitBooking(event)">
-            <div class="mb-3">
-                <label for="client_name" class="form-label">Name *</label>
-                <input type="text" class="form-control" id="client_name" required>
+        <div class="row">
+            <!-- Form Column -->
+            <div class="col-md-8">
+                <form id="osb-booking-form" onsubmit="osbApp.submitBooking(event)">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label for="client_salutation" class="form-label">Anrede</label>
+                            <select class="form-select" id="client_salutation">
+                                <option value="Frau">Frau</option>
+                                <option value="Herr">Herr</option>
+                                <option value="Divers">Divers</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="client_first_name" class="form-label">Vorname *</label>
+                            <input type="text" class="form-control" id="client_first_name" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="client_last_name" class="form-label">Nachname *</label>
+                            <input type="text" class="form-control" id="client_last_name" required>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="client_email" class="form-label">E-Mail *</label>
+                            <input type="email" class="form-control" id="client_email" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="client_phone" class="form-label">Telefon *</label>
+                            <input type="tel" class="form-control" id="client_phone" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="client_notes" class="form-label">Nachricht (Optional)</label>
+                        <textarea class="form-control" id="client_notes" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="d-grid mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg">Termin anfragen</button>
+                    </div>
+                </form>
             </div>
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label for="client_email" class="form-label">E-Mail *</label>
-                    <input type="email" class="form-control" id="client_email" required>
+
+            <!-- Summary Card Column -->
+            <div class="col-md-4 mt-4 mt-md-0">
+                <div class="osb-summary-card sticky-top" style="top: 20px; z-index: 1;">
+                    <h5>Deine Buchung</h5>
+                    <div class="osb-summary-item">
+                        <span class="osb-summary-label">Behandlung</span>
+                        <span class="osb-summary-value text-end" id="summary-service">-</span>
+                    </div>
+                    <div class="osb-summary-item">
+                        <span class="osb-summary-label">Datum</span>
+                        <span class="osb-summary-value" id="summary-date">-</span>
+                    </div>
+                    <div class="osb-summary-item">
+                        <span class="osb-summary-label">Uhrzeit</span>
+                        <span class="osb-summary-value" id="summary-time">-</span>
+                    </div>
+                    <div class="osb-summary-item">
+                        <span class="osb-summary-label">Dauer</span>
+                        <span class="osb-summary-value" id="summary-duration">-</span>
+                    </div>
                 </div>
-                <div class="col-md-6 mb-3">
-                    <label for="client_phone" class="form-label">Telefon *</label>
-                    <input type="tel" class="form-control" id="client_phone" required>
-                </div>
             </div>
-            <div class="mb-3">
-                <label for="client_notes" class="form-label">Nachricht (Optional)</label>
-                <textarea class="form-control" id="client_notes" rows="3"></textarea>
-            </div>
-            
-            <div class="d-grid mt-4">
-                <button type="submit" class="btn btn-primary btn-lg">Termin anfragen</button>
-            </div>
-        </form>
+        </div>
     </div>
 
     <!-- Step 4: Success -->
