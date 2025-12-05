@@ -741,15 +741,15 @@ class Ocean_Shiatsu_Booking_Admin {
 			<?php
 			// Google Calendar Settings
 			echo '<h2>Google Calendar Integration (OAuth 2.0)</h2>';
-			echo '<form method="post" action="">';
+			echo '<form method="post" action="" autocomplete="off">';
 			wp_nonce_field( 'osb_save_settings_verify', 'osb_save_settings' );
 			
 			echo '<table class="form-table">';
 			echo '<tr><th scope="row"><label for="gcal_client_id">Client ID</label></th>';
-			echo '<td><input type="text" name="gcal_client_id" id="gcal_client_id" value="' . esc_attr( $client_id ) . '" class="regular-text"></td></tr>';
+			echo '<td><input type="text" name="gcal_client_id" id="gcal_client_id" value="' . esc_attr( $client_id ) . '" class="regular-text" autocomplete="off"></td></tr>';
 			
 			echo '<tr><th scope="row"><label for="gcal_client_secret">Client Secret</label></th>';
-			echo '<td><input type="password" name="gcal_client_secret" id="gcal_client_secret" value="' . esc_attr( $client_secret ) . '" class="regular-text"></td></tr>';
+			echo '<td><input type="text" name="gcal_client_secret" id="gcal_client_secret" value="' . esc_attr( $client_secret ) . '" class="regular-text" autocomplete="off"></td></tr>';
 			
 			echo '<tr><th scope="row">Redirect URI</th>';
 			echo '<td><code>' . admin_url( 'admin.php?page=osb-settings&action=oauth_callback' ) . '</code><br><small>Add this to your Google Cloud Console "Authorized redirect URIs".</small></td></tr>';
