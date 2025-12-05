@@ -81,7 +81,9 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 		$table = $wpdb->prefix . 'osb_settings';
 		$json = $wpdb->get_var( "SELECT setting_value FROM $table WHERE setting_key = 'gcal_selected_calendars'" );
 		$selected = json_decode( $json, true );
-		return $selected ?: ['primary']; // Default to primary if nothing selected
+		// Fix: Check is_array to allow empty array (user unchecked all) to be valid. 
+		// Only default to ['primary'] if setting is missing (null).
+		return is_array( $selected ) ? $selected : ['primary'];
 	}
 
 	/**
