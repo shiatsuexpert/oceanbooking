@@ -3,7 +3,7 @@
  * Plugin Name: Ocean Shiatsu Booking
  * Plugin URI:  https://oceanshiatsu.com
  * Description: A premium appointment booking system with Google Calendar sync and email workflow.
- * Version:           1.3.11
+ * Version:           1.3.12
  * Author:            Ocean Shiatsu
  * Author URI:        https://oceanshiatsu.com
  * License:           GPL-2.0+
@@ -21,7 +21,7 @@ if ( ! defined( 'WPINC' ) ) {
  * Start at version 1.0.0 and use SemVer - https://semver.org
  * Rename this for your plugin and update it as you release new versions.
  */
-define( 'OCEAN_SHIATSU_BOOKING_VERSION', '1.3.11' );
+define( 'OCEAN_SHIATSU_BOOKING_VERSION', '1.3.12' );
 define( 'OSB_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'OSB_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
@@ -30,14 +30,17 @@ if ( file_exists( OSB_PLUGIN_DIR . 'vendor/autoload.php' ) ) {
 	require_once OSB_PLUGIN_DIR . 'vendor/autoload.php';
 }
 
-// Initialize Plugin Update Checker
-if ( class_exists( 'Puc_v4_Factory' ) ) {
-	$myUpdateChecker = Puc_v4_Factory::buildUpdateChecker(
-		'https://github.com/shiatsuexpert/oceanbooking',
-		__FILE__,
-		'ocean-shiatsu-booking'
-	);
-}
+// Initialize Plugin Update Checker (v5 API)
+use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
+
+$myUpdateChecker = PucFactory::buildUpdateChecker(
+	'https://github.com/shiatsuexpert/oceanbooking/',
+	__FILE__,
+	'ocean-shiatsu-booking'
+);
+
+// Use GitHub Releases with the attached .zip asset
+$myUpdateChecker->getVcsApi()->enableReleaseAssets();
 
 
 /**
