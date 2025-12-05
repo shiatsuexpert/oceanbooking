@@ -84,6 +84,35 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 		return $selected ?: ['primary']; // Default to primary if nothing selected
 	}
 
+	/**
+	 * Get the calendar ID to use for write operations (create/update/delete).
+	 * SAFETY: Returns false if no valid write calendar is configured or if it's not in the selected list.
+	 */
+	private function get_write_calendar() {
+		global $wpdb;
+		$table = $wpdb->prefix . 'osb_settings';
+		
+		// Get the configured write calendar
+		$write_calendar = $wpdb->get_var( "SELECT setting_value FROM $table WHERE setting_key = 'gcal_write_calendar'" );
+		
+		// If not set, default to 'primary' for backwards compatibility
+		if ( empty( $write_calendar ) ) {
+			$write_calendar = 'primary';
+		}
+		
+		// SAFETY CHECK: Ensure the write calendar is in the selected calendars list
+		$selected = $this->get_selected_calendars();
+		if ( ! in_array( $write_calendar, $selected ) ) {
+			Ocean_Shiatsu_Booking_Logger::log( 'ERROR', 'GCal', 'Write calendar not in selected list - blocking write operation', [
+				'write_calendar' => $write_calendar,
+				'selected_calendars' => $selected
+			]);
+			return false; // Block write operation
+		}
+		
+		return $write_calendar;
+	}
+
 	public function get_events_for_date( $date ) {
 		if ( ! $this->is_connected ) return [];
 
@@ -250,6 +279,13 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 	public function create_event( $appointment_data ) {
 		if ( ! $this->is_connected ) return '';
 
+		// SAFETY: Get validated write calendar
+		$calendarId = $this->get_write_calendar();
+		if ( ! $calendarId ) {
+			error_log( 'OSB GCal: Create blocked - no valid write calendar configured' );
+			return '';
+		}
+
 		try {
 			$event = new Google_Service_Calendar_Event( array(
 				'summary' => '[PENDING] ' . $appointment_data['client_name'] . ' - ' . $appointment_data['service_name'],
@@ -264,7 +300,6 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 				),
 			) );
 
-			$calendarId = 'primary'; // Always create in Primary
 			$event = $this->service->events->insert( $calendarId, $event );
 			
 			delete_transient( 'osb_gcal_' . $appointment_data['date'] );
@@ -279,8 +314,15 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 	public function delete_event( $event_id ) {
 		if ( ! $this->is_connected || ! $event_id ) return;
 
+		// SAFETY: Get validated write calendar
+		$calendarId = $this->get_write_calendar();
+		if ( ! $calendarId ) {
+			error_log( 'OSB GCal: Delete blocked - no valid write calendar configured' );
+			return;
+		}
+
 		try {
-			$this->service->events->delete( 'primary', $event_id );
+			$this->service->events->delete( $calendarId, $event_id );
 		} catch ( Exception $e ) {
 			error_log( 'OSB GCal Delete Error: ' . $e->getMessage() );
 		}
@@ -289,8 +331,15 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 	public function update_event_time( $event_id, $new_date, $new_time, $duration ) {
 		if ( ! $this->is_connected || ! $event_id ) return false;
 
+		// SAFETY: Get validated write calendar
+		$calendarId = $this->get_write_calendar();
+		if ( ! $calendarId ) {
+			error_log( 'OSB GCal: Update time blocked - no valid write calendar configured' );
+			return false;
+		}
+
 		try {
-			$event = $this->service->events->get( 'primary', $event_id );
+			$event = $this->service->events->get( $calendarId, $event_id );
 			
 			$start_dt = $new_date . 'T' . $new_time . ':00';
 			$end_dt = date( 'Y-m-d\TH:i:s', strtotime( $new_date . ' ' . $new_time ) + ( $duration * 60 ) );
@@ -305,16 +354,8 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 			$end->setTimeZone( $this->get_timezone() );
 			$event->setEnd( $end );
 
-			// Also remove [PENDING] if it's there, assuming a reschedule accept implies confirmation? 
-			// Or maybe we just update time. Let's just update time.
-			// Actually, if we are rescheduling, it might be confirmed or pending. 
-			// Let's stick to just updating time.
-
-			$this->service->events->update( 'primary', $event->getId(), $event );
+			$this->service->events->update( $calendarId, $event->getId(), $event );
 			
-			// Clear cache for both old and new dates? 
-			// Since we don't know the old date here easily without fetching, we might miss clearing old cache.
-			// But `get_events_for_date` cache is short lived (60s).
 			delete_transient( 'osb_gcal_' . $new_date );
 			
 			return true;
@@ -327,8 +368,15 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 	public function update_event_status( $event_id, $status ) {
 		if ( ! $this->is_connected || ! $event_id ) return;
 
+		// SAFETY: Get validated write calendar
+		$calendarId = $this->get_write_calendar();
+		if ( ! $calendarId ) {
+			error_log( 'OSB GCal: Update status blocked - no valid write calendar configured' );
+			return;
+		}
+
 		try {
-			$event = $this->service->events->get( 'primary', $event_id );
+			$event = $this->service->events->get( $calendarId, $event_id );
 			$summary = $event->getSummary();
 			
 			if ( $status === 'confirmed' ) {
@@ -336,7 +384,7 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 				$event->setSummary( $summary );
 			}
 
-			$this->service->events->update( 'primary', $event->getId(), $event );
+			$this->service->events->update( $calendarId, $event->getId(), $event );
 		} catch ( Exception $e ) {
 			error_log( 'OSB GCal Update Error: ' . $e->getMessage() );
 		}

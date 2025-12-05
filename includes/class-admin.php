@@ -616,6 +616,18 @@ class Ocean_Shiatsu_Booking_Admin {
 			check_admin_referer( 'osb_save_calendars_verify', 'osb_save_calendars' );
 			$selected_calendars = isset( $_POST['gcal_calendars'] ) ? array_map( 'sanitize_text_field', $_POST['gcal_calendars'] ) : [];
 			$this->update_setting( 'gcal_selected_calendars', json_encode( $selected_calendars ) );
+			
+			// Save write calendar
+			if ( isset( $_POST['gcal_write_calendar'] ) ) {
+				$write_calendar = sanitize_text_field( $_POST['gcal_write_calendar'] );
+				$this->update_setting( 'gcal_write_calendar', $write_calendar );
+				
+				// Warn if write calendar is not in selected list
+				if ( ! in_array( $write_calendar, $selected_calendars ) ) {
+					echo '<div class="notice notice-warning"><p>⚠️ The write calendar is NOT in your selected calendars! Booking writes will be blocked until you fix this.</p></div>';
+				}
+			}
+			
 			Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Admin', 'Calendars Selected', $selected_calendars );
 			echo '<div class="notice notice-success"><p>Calendar selection saved.</p></div>';
 		}
@@ -904,8 +916,15 @@ class Ocean_Shiatsu_Booking_Admin {
 		$table = $wpdb->prefix . 'osb_settings';
 		$json = $wpdb->get_var( "SELECT setting_value FROM $table WHERE setting_key = 'gcal_selected_calendars'" );
 		$selected = json_decode( $json, true ) ?: ['primary'];
+		
+		// Get current write calendar
+		$write_calendar = $wpdb->get_var( "SELECT setting_value FROM $table WHERE setting_key = 'gcal_write_calendar'" );
+		if ( empty( $write_calendar ) ) {
+			$write_calendar = 'primary';
+		}
 
 		echo '<h3>Select Calendars to Sync (Busy Times)</h3>';
+		echo '<p class="description">☑ Check the calendars to read for availability. Only busy times from these calendars will be considered.</p>';
 		echo '<form method="post" action="">';
 		wp_nonce_field( 'osb_save_calendars_verify', 'osb_save_calendars' );
 		
@@ -917,7 +936,23 @@ class Ocean_Shiatsu_Booking_Admin {
 			echo '</label></p>';
 		}
 		
-		echo '<input type="submit" class="button" value="Save Calendar Selection">';
+		// Write Calendar Selector
+		echo '<h3 style="margin-top: 20px;">📝 Write Calendar (Create Bookings)</h3>';
+		echo '<p class="description" style="color: #d63384;"><strong>⚠️ IMPORTANT:</strong> This is the ONLY calendar where new bookings will be created. Choose a calendar you trust!</p>';
+		
+		echo '<select name="gcal_write_calendar" style="min-width: 300px;">';
+		foreach ( $calendars as $cal ) {
+			$is_selected = ( $cal['id'] === $write_calendar ) ? 'selected' : '';
+			$in_sync_list = in_array( $cal['id'], $selected );
+			$warning = $in_sync_list ? '' : ' ⚠️ (not in sync list - will be blocked!)';
+			echo '<option value="' . esc_attr( $cal['id'] ) . '" ' . $is_selected . '>';
+			echo esc_html( $cal['summary'] ) . ( $cal['primary'] ? ' (Primary)' : '' ) . $warning;
+			echo '</option>';
+		}
+		echo '</select>';
+		echo '<p class="description">Bookings will only be created/modified/deleted in this calendar. It must also be checked above!</p>';
+		
+		echo '<p style="margin-top: 15px;"><input type="submit" class="button button-primary" value="Save Calendar Selection"></p>';
 		echo '</form>';
 	}
 }
