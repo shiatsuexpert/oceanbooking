@@ -88,7 +88,9 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 
 	/**
 	 * Get the calendar ID to use for write operations (create/update/delete).
-	 * SAFETY: Returns false if no valid write calendar is configured or if it's not in the selected list.
+	 * SAFETY: Returns false if:
+	 *   1. No write calendar is explicitly configured (no default!)
+	 *   2. The write calendar is not in the user's selected calendars list
 	 */
 	private function get_write_calendar() {
 		global $wpdb;
@@ -97,9 +99,10 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 		// Get the configured write calendar
 		$write_calendar = $wpdb->get_var( "SELECT setting_value FROM $table WHERE setting_key = 'gcal_write_calendar'" );
 		
-		// If not set, default to 'primary' for backwards compatibility
+		// SAFETY: If not explicitly set, BLOCK all writes (no default!)
 		if ( empty( $write_calendar ) ) {
-			$write_calendar = 'primary';
+			Ocean_Shiatsu_Booking_Logger::log( 'ERROR', 'GCal', 'Write calendar not configured - blocking write operation. Please select a Write Calendar in Settings.' );
+			return false;
 		}
 		
 		// SAFETY CHECK: Ensure the write calendar is in the selected calendars list
@@ -109,7 +112,7 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 				'write_calendar' => $write_calendar,
 				'selected_calendars' => $selected
 			]);
-			return false; // Block write operation
+			return false;
 		}
 		
 		return $write_calendar;

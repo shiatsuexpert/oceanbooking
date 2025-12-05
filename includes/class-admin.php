@@ -917,10 +917,12 @@ class Ocean_Shiatsu_Booking_Admin {
 		$json = $wpdb->get_var( "SELECT setting_value FROM $table WHERE setting_key = 'gcal_selected_calendars'" );
 		$selected = json_decode( $json, true ) ?: ['primary'];
 		
-		// Get current write calendar
+		// Get current write calendar (empty = not configured)
 		$write_calendar = $wpdb->get_var( "SELECT setting_value FROM $table WHERE setting_key = 'gcal_write_calendar'" );
+
+		// Show critical warning if no write calendar is configured
 		if ( empty( $write_calendar ) ) {
-			$write_calendar = 'primary';
+			echo '<div class="notice notice-error inline" style="margin: 10px 0;"><p><strong>⛔ CRITICAL:</strong> No Write Calendar configured. All booking write operations (create, update, delete) are currently <strong>BLOCKED</strong>. You must select a Write Calendar below to enable bookings.</p></div>';
 		}
 
 		echo '<h3>Select Calendars to Sync (Busy Times)</h3>';
@@ -938,9 +940,11 @@ class Ocean_Shiatsu_Booking_Admin {
 		
 		// Write Calendar Selector
 		echo '<h3 style="margin-top: 20px;">📝 Write Calendar (Create Bookings)</h3>';
-		echo '<p class="description" style="color: #d63384;"><strong>⚠️ IMPORTANT:</strong> This is the ONLY calendar where new bookings will be created. Choose a calendar you trust!</p>';
+		echo '<p class="description" style="color: #d63384;"><strong>⚠️ REQUIRED:</strong> You MUST select a calendar here. Bookings will NOT work until you do!</p>';
 		
-		echo '<select name="gcal_write_calendar" style="min-width: 300px;">';
+		echo '<select name="gcal_write_calendar" style="min-width: 300px;" required>';
+		// Add explicit "not selected" option
+		echo '<option value=""' . ( empty( $write_calendar ) ? ' selected' : '' ) . '>-- Select a Write Calendar (REQUIRED) --</option>';
 		foreach ( $calendars as $cal ) {
 			$is_selected = ( $cal['id'] === $write_calendar ) ? 'selected' : '';
 			$in_sync_list = in_array( $cal['id'], $selected );
