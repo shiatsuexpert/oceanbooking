@@ -638,7 +638,7 @@ class Ocean_Shiatsu_Booking_Admin {
 			$this->handle_oauth_callback( $_GET['code'] );
 		}	
 
-		$anchor_times = json_decode( $this->get_setting( 'anchor_times' ), true ) ?: ['09:00', '14:00'];
+
 		$working_start = $this->get_setting( 'working_start' ) ?: '09:00';
 		$working_end = $this->get_setting( 'working_end' ) ?: '18:00';
 		$working_days = json_decode( $this->get_setting( 'working_days' ), true ) ?: ['1','2','3','4','5'];
@@ -689,13 +689,7 @@ class Ocean_Shiatsu_Booking_Admin {
 							<input type="time" name="working_end" value="<?php echo esc_attr( $working_end ); ?>">
 						</td>
 					</tr>
-					<tr valign="top">
-						<th scope="row">Anchor Times (Clustering)</th>
-						<td>
-							<input type="text" name="anchor_times" value="<?php echo esc_attr( implode( ', ', $anchor_times ) ); ?>" class="regular-text" />
-							<p class="description">Comma separated times (e.g. 09:00, 14:00). These are the preferred start times for the first booking of the day.</p>
-						</td>
-					</tr>
+
 					<tr valign="top">
 						<th scope="row">Timezone</th>
 						<td>
@@ -743,6 +737,49 @@ class Ocean_Shiatsu_Booking_Admin {
 								echo esc_textarea( $this->get_setting( 'holiday_keywords' ) ?: 'Holiday,Urlaub,Closed' ); 
 							?></textarea>
 							<p class="description">Comma-separated keywords. If any event title contains these words, the day is marked as a holiday.</p>
+						</td>
+					</tr>
+				</table>
+
+				<h2>Slot Presentation</h2>
+				<p class="description" style="margin-bottom: 15px;">Control how time slots are displayed to clients. The algorithm filters slots to create an illusion of scarcity while maintaining variety.</p>
+				<table class="form-table">
+					<tr valign="top">
+						<th scope="row"><label for="slot_min_show">Minimum Slots to Show</label></th>
+						<td>
+							<input type="number" name="slot_min_show" id="slot_min_show" 
+								value="<?php echo esc_attr( $this->get_setting( 'slot_min_show' ) ?: '3' ); ?>" 
+								class="small-text" min="1" max="20">
+							<p class="description">Always show at least this many slots. If available slots are below this, show all.</p>
+						</td>
+					</tr>
+					<tr valign="top">
+						<th scope="row"><label for="slot_max_show">Maximum Slots to Show</label></th>
+						<td>
+							<input type="number" name="slot_max_show" id="slot_max_show" 
+								value="<?php echo esc_attr( $this->get_setting( 'slot_max_show' ) ?: '8' ); ?>" 
+								class="small-text" min="1" max="50">
+							<p class="description">Never show more than this many slots to clients.</p>
+						</td>
+					</tr>
+					<tr valign="top">
+						<th scope="row"><label for="slot_show_percentage">Empty Day Variety (%)</label></th>
+						<td>
+							<input type="range" name="slot_show_percentage" id="slot_show_percentage" 
+								value="<?php echo esc_attr( $this->get_setting( 'slot_show_percentage' ) ?: '50' ); ?>" 
+								min="10" max="100" step="10" oninput="document.getElementById('slot_show_percentage_val').textContent = this.value + '%'">
+							<span id="slot_show_percentage_val"><?php echo esc_html( $this->get_setting( 'slot_show_percentage' ) ?: '50' ); ?>%</span>
+							<p class="description">Percentage of slots to sample on days without existing events (before min/max bounds).</p>
+						</td>
+					</tr>
+					<tr valign="top">
+						<th scope="row"><label for="slot_edge_probability">First/Last Slot Probability (%)</label></th>
+						<td>
+							<input type="range" name="slot_edge_probability" id="slot_edge_probability" 
+								value="<?php echo esc_attr( $this->get_setting( 'slot_edge_probability' ) ?: '70' ); ?>" 
+								min="0" max="100" step="10" oninput="document.getElementById('slot_edge_probability_val').textContent = this.value + '%'">
+							<span id="slot_edge_probability_val"><?php echo esc_html( $this->get_setting( 'slot_edge_probability' ) ?: '70' ); ?>%</span>
+							<p class="description">Probability that earliest/latest slots appear in the sample (ensures variety across days).</p>
 						</td>
 					</tr>
 				</table>
@@ -822,10 +859,7 @@ class Ocean_Shiatsu_Booking_Admin {
 			$this->update_setting( 'working_days', json_encode( $days ) );
 		}
 
-		if ( isset( $_POST['anchor_times'] ) ) {
-			$times = array_map( 'trim', explode( ',', sanitize_text_field( $_POST['anchor_times'] ) ) );
-			$this->update_setting( 'anchor_times', json_encode( $times ) );
-		}
+
 
 		if ( isset( $_POST['timezone'] ) ) {
 			$this->update_setting( 'timezone', sanitize_text_field( $_POST['timezone'] ) );
@@ -838,6 +872,20 @@ class Ocean_Shiatsu_Booking_Admin {
 		$this->update_setting( 'all_day_is_holiday', isset( $_POST['all_day_is_holiday'] ) ? '1' : '0' );
 		if ( isset( $_POST['holiday_keywords'] ) ) {
 			$this->update_setting( 'holiday_keywords', sanitize_textarea_field( $_POST['holiday_keywords'] ) );
+		}
+
+		// Slot Presentation Settings
+		if ( isset( $_POST['slot_min_show'] ) ) {
+			$this->update_setting( 'slot_min_show', intval( $_POST['slot_min_show'] ) );
+		}
+		if ( isset( $_POST['slot_max_show'] ) ) {
+			$this->update_setting( 'slot_max_show', intval( $_POST['slot_max_show'] ) );
+		}
+		if ( isset( $_POST['slot_show_percentage'] ) ) {
+			$this->update_setting( 'slot_show_percentage', intval( $_POST['slot_show_percentage'] ) );
+		}
+		if ( isset( $_POST['slot_edge_probability'] ) ) {
+			$this->update_setting( 'slot_edge_probability', intval( $_POST['slot_edge_probability'] ) );
 		}
 
 		if ( isset( $_POST['gcal_client_id'] ) ) $this->update_setting( 'gcal_client_id', sanitize_text_field( $_POST['gcal_client_id'] ) );

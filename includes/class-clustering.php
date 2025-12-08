@@ -11,6 +11,8 @@ class Ocean_Shiatsu_Booking_Clustering {
 	/**
 	 * Get available start times for a specific date and service duration.
 	 * 
+	 * NEW ALGORITHM (v1.3.16): Free Window + Sequential Fill with Adjacent Clustering
+	 * 
 	 * @param string $date 'YYYY-MM-DD'
 	 * @param int $service_id
 	 * @return array List of available start times (e.g., ['09:00', '10:15'])
@@ -25,78 +27,254 @@ class Ocean_Shiatsu_Booking_Clustering {
 
 		$duration = intval( $service->duration_minutes );
 		$prep = intval( $service->preparation_minutes );
-		$total_duration = $duration + $prep;
+		$block_seconds = ( $duration + $prep ) * 60;
+		$duration_seconds = $duration * 60;
+		$prep_seconds = $prep * 60;
 
-		// 2. Fetch Settings (Business Hours & Days)
+		// 2. Check if Date is a Working Day
 		$working_days = $this->get_working_days();
-
-		// Check if Date is a Working Day
 		$day_of_week = date( 'N', strtotime( $date ) ); // 1 (Mon) - 7 (Sun)
 		if ( ! in_array( (string)$day_of_week, $working_days ) ) {
 			if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Clustering', "Date $date is not a working day." );
 			return []; // Closed
 		}
 
+		// 3. Get Working Hours (with timezone awareness)
 		$working_hours = $this->get_working_hours();
-		$biz_start = $working_hours['start'];
-		$biz_end = $working_hours['end'];
+		$tz = wp_timezone();
+		$biz_start_ts = ( new DateTime( $date . ' ' . $working_hours['start'], $tz ) )->getTimestamp();
+		$biz_end_ts = ( new DateTime( $date . ' ' . $working_hours['end'], $tz ) )->getTimestamp();
 
-		// 3. Fetch Busy Slots (Local + GCal)
+		// 4. Fetch Busy Slots (Local + GCal) - already includes all-day handling
 		$busy_slots = $this->get_busy_slots( $date );
-		if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Clustering', "Found Busy Slots", $busy_slots );
+		if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Clustering', "Found " . count($busy_slots) . " busy slots", $busy_slots );
 
-		// 4. Fetch Anchor Times from DB
-		$anchor_times = $this->get_anchor_times();
+		// 5. Calculate Free Windows (with bidirectional prep buffers)
+		$free_windows = $this->calculate_free_windows( $date, $biz_start_ts, $biz_end_ts, $busy_slots, $prep_seconds );
+		if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Clustering', "Calculated " . count($free_windows) . " free windows", $free_windows );
 
-		// 5. Calculate Potential Start Times
-		$potential_starts = [];
+		// 6. Generate slots for each window (with fill direction based on window type)
+		$all_slots = [];
+		$window_count = count( $free_windows );
 
-		// Rule A: Anchor Times
-		foreach ( $anchor_times as $anchor ) {
-			$potential_starts[] = $anchor;
+		foreach ( $free_windows as $index => $window ) {
+			$is_before_event = isset( $window['is_before_event'] ) && $window['is_before_event'];
+			$is_last_window = ( $index === $window_count - 1 ) && ( $window['end'] === $biz_end_ts );
+
+			$window_slots = $this->fill_window_with_slots(
+				$window['start'],
+				$window['end'],
+				$duration_seconds,
+				$block_seconds,
+				$is_before_event,
+				$is_last_window
+			);
+			$all_slots = array_merge( $all_slots, $window_slots );
 		}
 
-		// Rule B: Adjacent to Existing Bookings (Start immediately after an end time + prep of previous?)
-		// Actually, we just need to fit AFTER the previous booking.
-		// If previous booking ends at 10:00, we can start at 10:00.
-		foreach ( $busy_slots as $slot ) {
-			// $slot['end'] is 'HH:MM'
-			$potential_starts[] = date( 'H:i', strtotime( $slot['end'] ) );
-		}
+		// Convert timestamps to H:i format
+		$formatted_slots = array_map( function( $ts ) {
+			return date( 'H:i', $ts );
+		}, $all_slots );
 
-		// Rule C: Adjacent to Existing Bookings (End immediately before a start time)
-		// We want our (Duration + Prep) to end exactly at $slot['start']
-		// So Start = SlotStart - TotalDuration
-		foreach ( $busy_slots as $slot ) {
-			$start_timestamp = strtotime( $date . ' ' . $slot['start'] );
-			$potential_start_timestamp = $start_timestamp - ( $total_duration * 60 );
-			$potential_starts[] = date( 'H:i', $potential_start_timestamp );
-		}
+		if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Clustering', "Generated " . count($formatted_slots) . " raw slots", $formatted_slots );
 
-		// Add all possible 15-minute intervals within business hours
-		$start_ts_biz = strtotime($date . ' ' . $biz_start);
-		$end_ts_biz = strtotime($date . ' ' . $biz_end);
-		for ($ts = $start_ts_biz; $ts < $end_ts_biz; $ts += (15 * 60)) {
-			$potential_starts[] = date('H:i', $ts);
-		}
+		// 7. Apply Smart Slot Presentation (filter for client display)
+		$has_events = ! empty( $busy_slots );
+		$presented_slots = $this->present_slots( array_values( array_unique( $formatted_slots ) ), $date, $has_events );
 
+		if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Clustering', "Presented " . count($presented_slots) . " slots to client", $presented_slots );
 
-		// Remove duplicates and sort
-		$potential_starts = array_unique( $potential_starts );
-		sort( $potential_starts );
+		return $presented_slots;
+	}
 
-		// 6. Validate each potential start time
-		$valid_slots = [];
-		foreach ( $potential_starts as $start_time ) {
-			if ( $this->is_slot_valid( $start_time, $total_duration, $date, $biz_start, $biz_end, $busy_slots ) ) {
-				$valid_slots[] = $start_time;
-				if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Clustering', "Slot " . $start_time . " -> AVAILABLE" );
-			} else {
-				if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Clustering', "Slot " . $start_time . " -> BLOCKED" );
+	/**
+	 * Calculate free time windows between busy slots with bidirectional prep buffers.
+	 * 
+	 * @param string $date 'YYYY-MM-DD'
+	 * @param int $biz_start_ts Business start timestamp
+	 * @param int $biz_end_ts Business end timestamp
+	 * @param array $busy_slots Array of ['start' => 'HH:MM', 'end' => 'HH:MM']
+	 * @param int $prep_seconds Prep time in seconds
+	 * @return array Free windows with start/end timestamps and is_before_event flag
+	 */
+	private function calculate_free_windows( $date, $biz_start_ts, $biz_end_ts, $busy_slots, $prep_seconds ) {
+		$tz = wp_timezone();
+		$windows = [];
+		$current_start = $biz_start_ts;
+
+		// Sort busy slots by start time
+		usort( $busy_slots, function( $a, $b ) use ( $date, $tz ) {
+			$start_a = ( new DateTime( $date . ' ' . $a['start'], $tz ) )->getTimestamp();
+			$start_b = ( new DateTime( $date . ' ' . $b['start'], $tz ) )->getTimestamp();
+			return $start_a - $start_b;
+		});
+
+		foreach ( $busy_slots as $busy ) {
+			$busy_start_ts = ( new DateTime( $date . ' ' . $busy['start'], $tz ) )->getTimestamp();
+			$busy_end_ts = ( new DateTime( $date . ' ' . $busy['end'], $tz ) )->getTimestamp();
+
+			// Window BEFORE this event (subtract prep buffer)
+			$window_end = $busy_start_ts - $prep_seconds;
+
+			if ( $window_end > $current_start ) {
+				$windows[] = [
+					'start' => $current_start,
+					'end' => $window_end,
+					'is_before_event' => true
+				];
+			}
+
+			// Next window starts AFTER event + prep buffer
+			$next_start = $busy_end_ts + $prep_seconds;
+			if ( $next_start > $current_start ) {
+				$current_start = $next_start;
 			}
 		}
 
-		return array_values( $valid_slots );
+		// Final window (no prep needed at end of day)
+		if ( $current_start < $biz_end_ts ) {
+			$windows[] = [
+				'start' => $current_start,
+				'end' => $biz_end_ts,
+				'is_before_event' => false
+			];
+		}
+
+		return $windows;
+	}
+
+	/**
+	 * Fill a free window with slots using appropriate fill direction.
+	 * 
+	 * - Before event: Fill from END (cluster toward event)
+	 * - Last window of day: Fill from END (ensure late slots)
+	 * - Otherwise: Fill from START
+	 * 
+	 * @param int $start_ts Window start timestamp
+	 * @param int $end_ts Window end timestamp  
+	 * @param int $duration_seconds Service duration in seconds
+	 * @param int $block_seconds Service + prep time in seconds
+	 * @param bool $is_before_event Whether this window is before a busy event
+	 * @param bool $is_last_window Whether this is the last window of the day
+	 * @return array Slot start timestamps
+	 */
+	private function fill_window_with_slots( $start_ts, $end_ts, $duration_seconds, $block_seconds, $is_before_event, $is_last_window ) {
+		$slots = [];
+
+		// Fill from END for:
+		// 1. Windows before events (adjacent clustering)
+		// 2. Last window of day (ensure late slots like 17:00)
+		if ( $is_before_event || $is_last_window ) {
+			// Fill from END
+			$current = $end_ts - $duration_seconds;
+			while ( $current >= $start_ts ) {
+				$slots[] = $current;
+				$current -= $block_seconds;
+			}
+			$slots = array_reverse( $slots ); // Keep chronological order
+		} else {
+			// Fill from START
+			$current = $start_ts;
+			while ( ( $current + $duration_seconds ) <= $end_ts ) {
+				$slots[] = $current;
+				$current += $block_seconds;
+			}
+		}
+
+		return $slots;
+	}
+
+	/**
+	 * Present slots to client with smart filtering.
+	 * 
+	 * - If slots are scarce (<= min_show): Show all
+	 * - If day has events: Show up to max_show (already clustered)
+	 * - If empty day: Apply variety sampling with edge probability
+	 * 
+	 * @param array $slots All available slot times (H:i format)
+	 * @param string $date 'YYYY-MM-DD'
+	 * @param bool $has_events Whether the day has any busy events
+	 * @return array Filtered slots to display
+	 */
+	public function present_slots( $slots, $date, $has_events = false ) {
+		$min_show = intval( $this->get_setting( 'slot_min_show' ) ) ?: 3;
+		$max_show = intval( $this->get_setting( 'slot_max_show' ) ) ?: 8;
+		$percentage = intval( $this->get_setting( 'slot_show_percentage' ) ) ?: 50;
+		$edge_prob = intval( $this->get_setting( 'slot_edge_probability' ) ) ?: 70;
+
+		$total = count( $slots );
+
+		// If scarce, show all (don't hide when availability is limited)
+		if ( $total <= $min_show ) {
+			return $slots;
+		}
+
+		if ( $has_events ) {
+			// Day with events: Slots are already clustered, take first max_show
+			return array_slice( $slots, 0, $max_show );
+		} else {
+			// Empty day: Apply variety sampling
+			$sample_count = max( $min_show, min( $max_show, round( $total * $percentage / 100 ) ) );
+			return $this->sample_slots_with_variety( $slots, $date, $sample_count, $edge_prob );
+		}
+	}
+
+	/**
+	 * Sample slots with variety for empty days.
+	 * Uses deterministic random (same day = same result) with weighted edge probability.
+	 * 
+	 * @param array $slots All available slot times (H:i format)
+	 * @param string $date 'YYYY-MM-DD' (used as seed for deterministic random)
+	 * @param int $show_count Number of slots to return
+	 * @param int $edge_prob Probability (0-100) to include first/last slot
+	 * @return array Selected slots
+	 */
+	private function sample_slots_with_variety( $slots, $date, $show_count, $edge_prob ) {
+		// Deterministic randomness without global side effects (using hash of date)
+		
+		// Handle edge cases
+		if ( count( $slots ) <= 1 ) return $slots;
+		if ( count( $slots ) <= $show_count ) return $slots;
+
+		$first_slot = reset( $slots );
+		$last_slot = end( $slots );
+		$middle_slots = array_slice( $slots, 1, -1 );
+
+		$result = [];
+
+		// Weighted probability for first slot (deterministic)
+		// Use specific hash suffix to ensure different results for different checks
+		$first_hash = hexdec( substr( md5( $date . 'first' ), 0, 4 ) ); // 0-65535
+		$first_prob = ( $first_hash / 65535 ) * 100;
+		if ( $first_prob <= $edge_prob ) {
+			$result[] = $first_slot;
+		}
+
+		// Weighted probability for last slot
+		$last_hash = hexdec( substr( md5( $date . 'last' ), 0, 4 ) );
+		$last_prob = ( $last_hash / 65535 ) * 100;
+		if ( $last_prob <= $edge_prob && ! in_array( $last_slot, $result ) ) {
+			$result[] = $last_slot;
+		}
+
+		// Fill remaining from middle + any unused edge slots
+		$remaining_count = $show_count - count( $result );
+		$pool = $middle_slots;
+		if ( ! in_array( $first_slot, $result ) ) $pool[] = $first_slot;
+		if ( ! in_array( $last_slot, $result ) ) $pool[] = $last_slot;
+
+		// Deterministic shuffle
+		$seed = $date;
+		usort( $pool, function( $a, $b ) use ( $seed ) {
+			return strcmp( md5( $seed . $a ), md5( $seed . $b ) );
+		} );
+
+		$result = array_merge( $result, array_slice( $pool, 0, $remaining_count ) );
+
+		// Sort chronologically and return
+		sort( $result );
+		return array_slice( $result, 0, $show_count );
 	}
 
 	private function get_busy_slots( $date ) {
@@ -129,8 +307,15 @@ class Ocean_Shiatsu_Booking_Clustering {
 					continue;
 				}
 
-				$start_gcal = date( 'H:i', strtotime( $event['start']['dateTime'] ) );
-				$end_gcal = date( 'H:i', strtotime( $event['end']['dateTime'] ) );
+				// 🔧 FIX: Use DateTime with wp_timezone() for accurate conversion
+				$tz = wp_timezone();
+				$event_start = new DateTime( $event['start']['dateTime'] );
+				$event_start->setTimezone( $tz );
+				$event_end = new DateTime( $event['end']['dateTime'] );
+				$event_end->setTimezone( $tz );
+				
+				$start_gcal = $event_start->format( 'H:i' );
+				$end_gcal = $event_end->format( 'H:i' );
 				$busy[] = [
 					'start' => $start_gcal,
 					'end'   => $end_gcal,
@@ -192,10 +377,7 @@ class Ocean_Shiatsu_Booking_Clustering {
 		return $busy;
 	}
 
-	private function get_anchor_times() {
-		$json = $this->get_setting( 'anchor_times' );
-		return $json ? json_decode( $json, true ) : ['09:00', '14:00'];
-	}
+
 
 	private function get_working_days() {
 		return json_decode( $this->get_setting( 'working_days' ), true ) ?: ['1','2','3','4','5'];
@@ -214,27 +396,5 @@ class Ocean_Shiatsu_Booking_Clustering {
 		return $wpdb->get_var( $wpdb->prepare( "SELECT setting_value FROM $table_name WHERE setting_key = %s", $key ) );
 	}
 
-	private function is_slot_valid( $start_time, $duration, $date, $biz_start, $biz_end, $busy_slots ) {
-		$start_ts = strtotime( $date . ' ' . $start_time );
-		$end_ts = $start_ts + ( $duration * 60 );
-		$end_time = date( 'H:i', $end_ts );
 
-		// Check Business Hours
-		if ( $start_time < $biz_start || $end_time > $biz_end ) {
-			return false;
-		}
-
-		// Check Overlaps
-		foreach ( $busy_slots as $slot ) {
-			$busy_start_ts = strtotime( $date . ' ' . $slot['start'] );
-			$busy_end_ts = strtotime( $date . ' ' . $slot['end'] );
-
-			// Overlap logic: (StartA < EndB) and (EndA > StartB)
-			if ( $start_ts < $busy_end_ts && $end_ts > $busy_start_ts ) {
-				return false;
-			}
-		}
-
-		return true;
-	}
 }
