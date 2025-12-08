@@ -145,6 +145,11 @@ class Ocean_Shiatsu_Booking_API {
 			return new WP_Error( 'missing_params', 'Date (or start/end date) and Service ID are required', array( 'status' => 400 ) );
 		}
 
+		$start_time = microtime( true );
+		$is_debug = Ocean_Shiatsu_Booking_Logger::is_debug_enabled();
+		$debug_metrics = [ 'db' => 0, 'gcal' => 0, 'logic' => 0 ];
+		$source = 'cache_hit';
+
 		// Get duration from DB
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'osb_services';
@@ -171,8 +176,13 @@ class Ocean_Shiatsu_Booking_API {
 			// Check for Cache Miss on first day (Month Miss Fallback)
 			$pre_fetched_range = null;
 			if ( false === get_transient( 'osb_gcal_' . $start_date ) ) {
+				$source = 'cache_miss_month_fetch';
+				if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'API', "Month Miss: Fetching range $start_date to $end_date and warming cache." );
+				
+				$t0 = microtime(true);
 				$gcal = new Ocean_Shiatsu_Booking_Google_Calendar();
 				$pre_fetched_range = $gcal->get_events_range( $start_date, $end_date );
+				$debug_metrics['gcal'] = microtime(true) - $t0;
 			}
 
 			while ( $current <= $end ) {
@@ -212,12 +222,56 @@ class Ocean_Shiatsu_Booking_API {
 			}
 
 			set_transient( $cache_key, $result, 3 * 60 ); // 3 minutes
-			return rest_ensure_response( $result );
+			
+			$response = rest_ensure_response( $result );
+			if ( $is_debug ) {
+				$total_dur = microtime(true) - $start_time;
+				$debug_metrics['logic'] = $total_dur - $debug_metrics['gcal'];
+				$response->header( 'Server-Timing', "total;dur=" . ($total_dur*1000) . ", gcal;dur=" . ($debug_metrics['gcal']*1000) );
+				
+				$data = $response->get_data();
+				$data['debug'] = [
+					'source' => $source,
+					'timestamp' => current_time('mysql'),
+					'metrics' => $debug_metrics,
+					'logs' => $clustering->get_last_debug_log() // Last day processed log
+				];
+				$response->set_data($data);
+			}
+			return $response;
 		}
 
 		// Handle Single Date Request
 		$slots = $clustering->get_available_slots( $date, $service_id );
-		return rest_ensure_response( $slots );
+		
+		$response = rest_ensure_response( $slots );
+		if ( $is_debug ) {
+			$total_dur = microtime(true) - $start_time;
+			$response->header( 'Server-Timing', "total;dur=" . ($total_dur*1000) );
+			
+			// For single date, transform response to object to attach debug
+			// Note: This changes response structure from Array to Object!
+			// Frontend must handle if structure changes OR we inject into headers/meta?
+			// PROPOSAL: If debug, wrap. Booking app assumes array of strings.
+			// WRAPPER: { slots: [...], debug: {...} } OR attach to response object but client receives body.
+			// Client expects ARRAY. Changing to Object breaks existing JS.
+			// But JS plan says: "Update fetchSlots ... to check for response.debug"
+			// JS 'fetchSlots' does `data = await response.json()`. If it's array, `data.debug` is undefined.
+			// If I change to `{ slots: [], debug: {} }`, I break compatibility unless JS handles it.
+			// "Update booking-app.js to parse this metadata"
+			// I WILL WRITE THE JS CHANGE NEXT. So I can change the structure here.
+			
+			$response_data = [
+				'slots' => $slots,
+				'debug' => [
+					'source' => 'single_day_fetch', // Could be cache hit or not inside clustering
+					'timestamp' => current_time('mysql'),
+					'calculation_log' => $clustering->get_last_debug_log()
+				]
+			];
+			$response->set_data( $response_data );
+		}
+		return $response;
 	}
 
 	public function create_booking( $request ) {
@@ -229,7 +283,12 @@ class Ocean_Shiatsu_Booking_API {
 		}
 
 		$params = $request->get_json_params();
-		Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'API', 'Create Booking Request', $params );
+		$log_params = $params;
+		// Mask PII
+		if ( isset( $log_params['client_email'] ) ) $log_params['client_email'] = '***@***.com';
+		if ( isset( $log_params['client_phone'] ) ) $log_params['client_phone'] = '***-***-****';
+		if ( isset( $log_params['client_name'] ) ) $log_params['client_name'] = '*** ***';
+		Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'API', 'Create Booking Request', $log_params );
 
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'osb_appointments';
@@ -457,9 +516,16 @@ class Ocean_Shiatsu_Booking_API {
 		$resource_state = $request->get_header( 'X-Goog-Resource-State' );
 		$token = $request->get_header( 'X-Goog-Channel-Token' );
 
+		// Log Receipt
+		Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'API', 'Webhook Received', [
+			'state' => $resource_state, 
+			'channel' => $channel_id
+		] );
+
 		// 1. Verify Token
 		$stored_token = get_option( 'osb_webhook_token' );
 		if ( ! $stored_token || ! hash_equals( $stored_token, $token ) ) {
+			Ocean_Shiatsu_Booking_Logger::log( 'WARNING', 'API', 'Webhook Invalid Token' );
 			return new WP_Error( 'forbidden', 'Invalid token', array( 'status' => 403 ) );
 		}
 
@@ -482,6 +548,7 @@ class Ocean_Shiatsu_Booking_API {
 			}
 
 			if ( $calendar_id ) {
+				Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'API', 'Webhook Triggering Sync', ['calendar' => $calendar_id] );
 				// Trigger Sync
 				$sync = new Ocean_Shiatsu_Booking_Sync();
 				$sync->sync_events(); 
@@ -491,6 +558,8 @@ class Ocean_Shiatsu_Booking_API {
 				$next_month = date('Y-m', strtotime('+1 month'));
 				$sync->calculate_monthly_availability( $current_month );
 				$sync->calculate_monthly_availability( $next_month );
+			} else {
+				Ocean_Shiatsu_Booking_Logger::log( 'WARNING', 'API', 'Webhook Ignored: Unknown Channel', ['channel' => $channel_id] );
 			}
 		}
 
@@ -576,7 +645,11 @@ class Ocean_Shiatsu_Booking_API {
 		if ( in_array( $time, $slots ) ) {
 			return rest_ensure_response( array( 'valid' => true ) );
 		} else {
-			return new WP_Error( 'conflict', 'Dieser Termin ist leider bereits vergeben. Bitte wähle einen anderen.', array( 'status' => 409 ) );
+			$error_data = array( 'status' => 409 );
+			if ( Ocean_Shiatsu_Booking_Logger::is_debug_enabled() ) {
+				$error_data['debug'] = $clustering->get_last_debug_log();
+			}
+			return new WP_Error( 'conflict', 'Dieser Termin ist leider bereits vergeben. Bitte wähle einen anderen.', $error_data );
 		}
 	}
 }

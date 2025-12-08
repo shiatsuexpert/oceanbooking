@@ -3,9 +3,14 @@
 class Ocean_Shiatsu_Booking_Clustering {
 
 	private $gcal;
+	private $last_debug_log = [];
 
 	public function __construct() {
 		$this->gcal = new Ocean_Shiatsu_Booking_Google_Calendar();
+	}
+
+	public function get_last_debug_log() {
+		return $this->last_debug_log;
 	}
 
 	/**
@@ -19,7 +24,18 @@ class Ocean_Shiatsu_Booking_Clustering {
 	 */
 	public function get_available_slots( $date, $service_id, $pre_fetched_events = null ) {
 		global $wpdb;
-		$is_debug = is_user_logged_in();
+		$is_debug = Ocean_Shiatsu_Booking_Logger::is_debug_enabled();
+		
+		if ( $is_debug ) {
+			$this->last_debug_log = [
+				'date' => $date,
+				'steps' => [],
+				'blockers' => [],
+				'windows' => [],
+				'candidates' => [],
+				'selected' => []
+			];
+		}
 
 		// 1. Fetch Service Details (Duration + Prep)
 		$service = $wpdb->get_row( $wpdb->prepare( "SELECT duration_minutes, preparation_minutes FROM {$wpdb->prefix}osb_services WHERE id = %d", $service_id ) );
@@ -35,7 +51,7 @@ class Ocean_Shiatsu_Booking_Clustering {
 		$working_days = $this->get_working_days();
 		$day_of_week = date( 'N', strtotime( $date ) ); // 1 (Mon) - 7 (Sun)
 		if ( ! in_array( (string)$day_of_week, $working_days ) ) {
-			if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Clustering', "Date $date is not a working day." );
+			if ( $is_debug ) $this->last_debug_log['steps'][] = "Date $date is Closed (Not a working day).";
 			return []; // Closed
 		}
 
@@ -46,13 +62,24 @@ class Ocean_Shiatsu_Booking_Clustering {
 		$biz_end_ts = ( new DateTime( $date . ' ' . $working_hours['end'], $tz ) )->getTimestamp();
 
 		// 4. Fetch Busy Slots (Local + GCal) - already includes all-day handling
+		// 4. Fetch Busy Slots (Local + GCal) - already includes all-day handling
 		// Pass pre_fetched_events to optimize N+1
 		$busy_slots = $this->get_busy_slots( $date, $pre_fetched_events );
-		if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Clustering', "Found " . count($busy_slots) . " busy slots", $busy_slots );
+		if ( $is_debug ) {
+			$this->last_debug_log['blockers'] = $busy_slots;
+			$this->last_debug_log['steps'][] = "Found " . count($busy_slots) . " blockers.";
+		}
 
 		// 5. Calculate Free Windows (with bidirectional prep buffers)
+		// 5. Calculate Free Windows (with bidirectional prep buffers)
 		$free_windows = $this->calculate_free_windows( $date, $biz_start_ts, $biz_end_ts, $busy_slots, $prep_seconds );
-		if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Clustering', "Calculated " . count($free_windows) . " free windows", $free_windows );
+		if ( $is_debug ) {
+			$formatted_windows = array_map(function($w){ 
+				return ['start' => date('H:i', $w['start']), 'end' => date('H:i', $w['end'])]; 
+			}, $free_windows);
+			$this->last_debug_log['windows'] = $formatted_windows;
+			$this->last_debug_log['steps'][] = "Calculated " . count($free_windows) . " free windows.";
+		}
 
 		// 6. Generate slots for each window (with fill direction based on window type)
 		$all_slots = [];
@@ -78,13 +105,20 @@ class Ocean_Shiatsu_Booking_Clustering {
 			return wp_date( 'H:i', $ts );
 		}, $all_slots );
 
-		if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Clustering', "Generated " . count($formatted_slots) . " raw slots", $formatted_slots );
+		if ( $is_debug ) {
+			$this->last_debug_log['candidates'] = $formatted_slots;
+			$this->last_debug_log['steps'][] = "Generated " . count($formatted_slots) . " candidates.";
+		}
 
+		// 7. Apply Smart Slot Presentation (filter for client display)
 		// 7. Apply Smart Slot Presentation (filter for client display)
 		$has_events = ! empty( $busy_slots );
 		$presented_slots = $this->present_slots( array_values( array_unique( $formatted_slots ) ), $date, $has_events );
 
-		if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Clustering', "Presented " . count($presented_slots) . " slots to client", $presented_slots );
+		if ( $is_debug ) {
+			$this->last_debug_log['selected'] = $presented_slots;
+			$this->last_debug_log['steps'][] = "Final Selection: " . count($presented_slots) . " slots.";
+		}
 
 		return $presented_slots;
 	}
@@ -310,6 +344,7 @@ class Ocean_Shiatsu_Booking_Clustering {
 					$busy[] = [
 						'start' => '00:00',
 						'end'   => '23:59',
+						'reason' => 'All-Day Event / Holiday'
 					];
 					if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Clustering', "GCal All-Day Event: Blocking full day" );
 					continue;
@@ -324,9 +359,12 @@ class Ocean_Shiatsu_Booking_Clustering {
 				
 				$start_gcal = $event_start->format( 'H:i' );
 				$end_gcal = $event_end->format( 'H:i' );
+				$start_gcal = $event_start->format( 'H:i' );
+				$end_gcal = $event_end->format( 'H:i' );
 				$busy[] = [
 					'start' => $start_gcal,
 					'end'   => $end_gcal,
+					'reason' => 'GCal Event: ' . ( isset($event['summary']) ? $event['summary'] : 'Busy' )
 				];
 				if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Clustering', "GCal Event: $start_gcal - $end_gcal" );
 			}
@@ -363,9 +401,12 @@ class Ocean_Shiatsu_Booking_Clustering {
 			if ( $appt->start_time ) {
 				$start_local = date( 'H:i', strtotime( $appt->start_time ) );
 				$end_local = date( 'H:i', strtotime( $appt->end_time ) );
+				$start_local = date( 'H:i', strtotime( $appt->start_time ) );
+				$end_local = date( 'H:i', strtotime( $appt->end_time ) );
 				$busy[] = [
 					'start' => $start_local,
 					'end'   => $end_local,
+					'reason' => 'Local Booking: ' . $appt->status
 				];
 				if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Clustering', "Local Appt (Original): $start_local - $end_local (Status: {$appt->status})" );
 			}
@@ -374,9 +415,12 @@ class Ocean_Shiatsu_Booking_Clustering {
 			if ( $appt->status === 'admin_proposal' && $appt->proposed_start_time ) {
 				$start_proposed = date( 'H:i', strtotime( $appt->proposed_start_time ) );
 				$end_proposed = date( 'H:i', strtotime( $appt->proposed_end_time ) );
+				$start_proposed = date( 'H:i', strtotime( $appt->proposed_start_time ) );
+				$end_proposed = date( 'H:i', strtotime( $appt->proposed_end_time ) );
 				$busy[] = [
 					'start' => $start_proposed,
 					'end'   => $end_proposed,
+					'reason' => 'Admin Proposal'
 				];
 				if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Clustering', "Local Appt (Proposed): $start_proposed - $end_proposed (Status: {$appt->status})" );
 			}

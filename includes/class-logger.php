@@ -30,10 +30,28 @@ class Ocean_Shiatsu_Booking_Logger {
 	 * @param string $message The log message
 	 * @param array  $context Optional context data (array)
 	 */
+	private static $debug_cache = null;
+
+	public static function is_debug_enabled() {
+		if ( self::$debug_cache !== null ) {
+			return self::$debug_cache;
+		}
+
+		global $wpdb;
+		$settings = $wpdb->get_var( "SELECT option_value FROM {$wpdb->prefix}osb_settings WHERE option_key = 'osb_enable_debug'" );
+		self::$debug_cache = ( $settings === '1' );
+		return self::$debug_cache;
+	}
+
 	public static function log( $level, $source, $message, $context = [] ) {
+		// Filter DEBUG logs if debug is disabled
+		if ( $level === 'DEBUG' && ! self::is_debug_enabled() ) {
+			return;
+		}
+
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'osb_logs';
-
+		
 		// Ensure table exists (sanity check, though activator should handle it)
 		// We skip this check for performance in production, assuming activation ran.
 

@@ -36,13 +36,16 @@ class Ocean_Shiatsu_Booking_Sync {
 	}
 
 	public function run_sync() {
-		Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Sync', 'Two-Way Sync Started' );
+		Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Sync', 'Two-Way Sync Started' );
 
 		$gcal = new Ocean_Shiatsu_Booking_Google_Calendar();
 		if ( ! $gcal->is_connected() ) {
 			Ocean_Shiatsu_Booking_Logger::log( 'WARNING', 'Sync', 'GCal not connected. Aborting.' );
 			return;
 		}
+
+		$start_time = microtime( true );
+		$start_mem = memory_get_usage();
 
 		global $wpdb;
 		$settings_table = $wpdb->prefix . 'osb_settings';
@@ -75,7 +78,17 @@ class Ocean_Shiatsu_Booking_Sync {
 		// 4. Update Sync Token
 		$this->update_sync_token();
 		
-		Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Sync', 'Two-Way Sync Completed' );
+		$duration = round( microtime( true ) - $start_time, 4 );
+		$mem_peak = round( memory_get_peak_usage() / 1024 / 1024, 2 );
+
+		// Only log if changes found OR Debug Mode is ON
+		if ( ! empty( $modified_events ) || Ocean_Shiatsu_Booking_Logger::is_debug_enabled() ) {
+			Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Sync', 'Two-Way Sync Completed', [
+				'duration_sec' => $duration,
+				'memory_mb' => $mem_peak,
+				'events_processed' => count( $modified_events )
+			] );
+		}
 	}
 
 	private function process_event( $event ) {
@@ -218,6 +231,13 @@ class Ocean_Shiatsu_Booking_Sync {
 			// Pre-Warm Cache (Gap 1 Fix / Safety Upgrade 2)
 			// Destructive Overwrite with 1 Hour TTL (Safety Upgrade 1)
 			set_transient( 'osb_gcal_' . $date, $day_events, 3600 );
+			
+			if ( Ocean_Shiatsu_Booking_Logger::is_debug_enabled() ) {
+				Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Sync', "Cache Updated: osb_gcal_$date", [
+					'event_count' => count( $day_events ),
+					'ttl' => 3600
+				] );
+			}
 
 			// 2. Check for Holiday (All-Day or Spanning Event)
 			// Use filtered $day_events instead of API call

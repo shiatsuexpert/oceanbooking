@@ -57,6 +57,57 @@ const osbApp = {
         }
     },
 
+    traceDebug: function (debug) {
+        if (!debug) return;
+
+        const label = `🔍 Availability Trace`;
+        console.groupCollapsed(label, debug.timestamp);
+
+        console.log(`%c Source: ${debug.source}`, 'font-weight: bold; color: #0073aa;');
+
+        if (debug.metrics) {
+            console.log('⏱️ Performance Metrics:', debug.metrics);
+        }
+
+        if (debug.logs) {
+            console.group('🛠️ Decision Components');
+            if (debug.logs.blockers) {
+                console.log('Blockers (Busy Slots):');
+                console.table(debug.logs.blockers);
+            }
+            if (debug.logs.windows) {
+                console.log('Free Windows:');
+                console.table(debug.logs.windows);
+            }
+            if (debug.logs.candidates) {
+                console.log('Slot Candidates (Pre-Filter):', debug.logs.candidates);
+            }
+            if (debug.logs.selected) {
+                console.log('Final Selected Slots:', debug.logs.selected);
+            }
+            if (debug.logs.steps) {
+                console.log('Log Steps:');
+                console.table(debug.logs.steps);
+            }
+            console.groupEnd();
+        }
+
+        if (debug.calculation_log) {
+            // Handle single day structure if different (I used 'logs' in catch-all range and 'calculation_log' in single day - unifying to 'logs' is better but I used 'calculation_log' in one place in PHP. Let's handle both or fix PHP.
+            // PHP: 'logs' => $clustering->get_last_debug_log() (Range)
+            // PHP: 'calculation_log' => ... (Single)
+            // Let's support both here :)
+            const logs = debug.calculation_log;
+            console.group('🛠️ Decision Components (Single Day)');
+            if (logs.blockers) console.table(logs.blockers);
+            if (logs.windows) console.table(logs.windows);
+            if (logs.steps) console.table(logs.steps);
+            console.groupEnd();
+        }
+
+        console.groupEnd();
+    },
+
     renderCalendar: function (date) {
         const container = document.getElementById('osb-calendar-container');
         if (!container) return;
@@ -345,7 +396,17 @@ const osbApp = {
         console.log('Cache miss, fetching live for', date);
         fetch(`${osbData.apiUrl}availability?date=${date}&service_id=${this.state.serviceId}`)
             .then(response => response.json())
-            .then(slots => {
+            .then(data => {
+                let slots = data;
+
+                // Handle Debug Wrapper
+                if (data.debug) {
+                    this.traceDebug(data.debug);
+                }
+                if (data.slots) {
+                    slots = data.slots;
+                }
+
                 // Cache this single date too
                 this.state.availabilityCache[date] = slots;
                 this.renderSlots(slots);
@@ -401,9 +462,23 @@ const osbApp = {
             .then(res => res.json())
             .then(data => {
                 this.showLoading(false);
+                this.showLoading(false);
+
+                // Handle Debug in Success Response? (Validation usually just returns {valid: true})
+                // But my PHP code didn't add debug to success response of validate_slot, only error.
+                // Wait, if I want to see WHY it's valid, I should have added it to success too?
+                // Yes, but let's handle error first.
+
                 if (data.valid) {
                     this.nextStep();
                 } else {
+                    // Check for Debug Data in Error Response
+                    // WP REST API errors come as { code: ..., message: ..., data: { status: ..., debug: ... } }
+                    // But here 'data' is the JSON body.
+                    if (data.data && data.data.debug) {
+                        this.traceDebug(data.data.debug);
+                    }
+
                     // Invalid/Taken
                     alert(data.message || 'Dieser Termin ist leider bereits vergeben. Bitte wähle einen anderen.');
                     // Force refresh slots

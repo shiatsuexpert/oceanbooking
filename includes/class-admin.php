@@ -48,6 +48,15 @@ class Ocean_Shiatsu_Booking_Admin {
 			'osb-logs', 
 			array( $this, 'display_logs_page' ) 
 		);
+
+		add_submenu_page( 
+			'ocean-shiatsu-booking', 
+			'Cache Inspector', 
+			'Cache Inspector', 
+			'manage_options', 
+			'osb-cache', 
+			array( $this, 'display_cache_inspector' ) 
+		);
 	}
 
 	public function display_logs_page() {
@@ -144,6 +153,76 @@ class Ocean_Shiatsu_Booking_Admin {
 		</div>
 		<?php
 	}
+
+	public function display_cache_inspector() {
+		global $wpdb;
+
+		// Fetch all transients related to OSB (This is tricky in WP as transients are in options table with timeout prefix)
+		// We'll look for `_transient_osb_gcal_%`
+		
+		$transients = $wpdb->get_results( 
+			"SELECT option_name, option_value FROM {$wpdb->options} WHERE option_name LIKE '_transient_osb_gcal_%'" 
+		);
+
+		?>
+		<div class="wrap">
+			<h1>Cache Inspector</h1>
+			<p>Active Google Calendar caching keys (Time Slots).</p>
+			
+			<table class="wp-list-table widefat fixed striped">
+				<thead>
+					<tr>
+						<th>Key</th>
+						<th>Date</th>
+						<th>Event Count</th>
+						<th>Expires In</th>
+						<th>Action</th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php if ( empty( $transients ) ) : ?>
+						<tr><td colspan="5">No active cache keys found.</td></tr>
+					<?php else : ?>
+						<?php foreach ( $transients as $t ) : ?>
+							<?php
+							$key = str_replace( '_transient_', '', $t->option_name );
+							$date = str_replace( 'osb_gcal_', '', $key );
+							$value = get_transient( $key ); // Ensure we get the unserialized value
+							$count = is_array( $value ) ? count( $value ) : 'N/A';
+							
+							// Calculate expiry
+							$timeout = get_option( '_transient_timeout_' . $key );
+							$files = 'N/A';
+							if ( $timeout ) {
+								$remaining = $timeout - time();
+								if ( $remaining > 0 ) {
+									$files = number_format( $remaining ) . 's (' . number_format( $remaining / 60, 1 ) . 'm)';
+								} else {
+									$files = 'Expired';
+								}
+							}
+							?>
+							<tr>
+								<td><?php echo esc_html( $key ); ?></td>
+								<td><?php echo esc_html( $date ); ?></td>
+								<td><?php echo $count; ?></td>
+								<td><?php echo $files; ?></td>
+								<td>
+									<form method="post" style="display:inline;">
+										<?php wp_nonce_field( 'osb_clear_cache_verify' ); ?>
+										<input type="hidden" name="osb_clear_cache_key" value="<?php echo esc_attr( $key ); ?>">
+										<button type="submit" class="button button-small">Clear</button>
+									</form>
+								</td>
+							</tr>
+						<?php endforeach; ?>
+					<?php endif; ?>
+				</tbody>
+			</table>
+		</div>
+		<?php
+	}
+
 
 	public function display_services_page() {
 		global $wpdb;
@@ -645,6 +724,14 @@ class Ocean_Shiatsu_Booking_Admin {
 			echo '<div class="notice notice-success"><p>Calendar selection saved.</p></div>';
 		}
 
+		// Handle Cache Clear (Inspector)
+		if ( isset( $_POST['osb_clear_cache_key'] ) ) {
+			check_admin_referer( 'osb_clear_cache_verify' );
+			$key = sanitize_text_field( $_POST['osb_clear_cache_key'] );
+			delete_transient( $key );
+			echo '<div class="notice notice-success"><p>Cache key cleared: ' . esc_html( $key ) . '</p></div>';
+		}
+
 		// Handle OAuth Callback
 		if ( isset( $_GET['action'] ) && $_GET['action'] === 'oauth_callback' && isset( $_GET['code'] ) ) {
 			Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Admin', 'OAuth Callback Received' );
@@ -700,6 +787,15 @@ class Ocean_Shiatsu_Booking_Admin {
 						<td>
 							<input type="time" name="working_start" value="<?php echo esc_attr( $working_start ); ?>"> to 
 							<input type="time" name="working_end" value="<?php echo esc_attr( $working_end ); ?>">
+						</td>
+					</tr>
+					<tr valign="top">
+						<th scope="row"><label for="osb_enable_debug">Enable Debug Mode</label></th>
+						<td>
+							<?php $debug_enabled = $this->get_setting( 'osb_enable_debug' ); ?>
+							<input type="checkbox" name="osb_enable_debug" id="osb_enable_debug" value="1" 
+								<?php checked( $debug_enabled !== '0' && $debug_enabled !== null && $debug_enabled !== '' ? $debug_enabled : 0 ); ?>>
+							<label for="osb_enable_debug">Enable verbose logging and frontend developer tracing.</label>
 						</td>
 					</tr>
 
