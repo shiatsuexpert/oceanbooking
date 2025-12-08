@@ -101,6 +101,9 @@ class Ocean_Shiatsu_Booking_API {
 				$new_date = date( 'Y-m-d', $start_ts );
 				$new_time = date( 'H:i', $start_ts );
 
+				// LOOP PREVENTION: Set ignore transient before updating GCal
+				set_transient( 'osb_ignore_sync_' . $booking->id, true, 60 );
+
 				$gcal->update_event_time( $booking->gcal_event_id, $new_date, $new_time, $duration );
 			}
 
@@ -401,6 +404,8 @@ class Ocean_Shiatsu_Booking_API {
 			}
 
 			// Send Client Rejection
+			$emails = new Ocean_Shiatsu_Booking_Emails();
+			$emails->send_client_rejection( $booking_id );
 		}
 
 		return rest_ensure_response( array( 'success' => true, 'action' => $action ) );

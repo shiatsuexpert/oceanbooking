@@ -74,7 +74,7 @@ class Ocean_Shiatsu_Booking_Clustering {
 
 		// Convert timestamps to H:i format
 		$formatted_slots = array_map( function( $ts ) {
-			return date( 'H:i', $ts );
+			return wp_date( 'H:i', $ts );
 		}, $all_slots );
 
 		if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Clustering', "Generated " . count($formatted_slots) . " raw slots", $formatted_slots );

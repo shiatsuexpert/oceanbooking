@@ -99,7 +99,11 @@ class Ocean_Shiatsu_Booking_Sync {
 			if ( $booking->status !== 'cancelled' ) {
 				$wpdb->update( $table_name, ['status' => 'cancelled'], ['id' => $booking->id] );
 				Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Sync', "Booking #{$booking->id} cancelled via GCal." );
-				// TODO: Notify Admin/Client?
+				// Notify Client/Admin (unless triggered by local action)
+				if ( ! get_transient( 'osb_ignore_sync_' . $booking->id ) ) {
+					$emails = new Ocean_Shiatsu_Booking_Emails();
+					$emails->send_sync_cancellation_notice( $booking->id, 'Appointment cancelled via Google Calendar' );
+				}
 			}
 			return;
 		}
@@ -127,7 +131,11 @@ class Ocean_Shiatsu_Booking_Sync {
 				['id' => $booking->id] 
 			);
 			Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Sync', "Booking #{$booking->id} moved via GCal to $gcal_start." );
-			// TODO: Notify Admin/Client?
+			// Notify Client/Admin (unless triggered by local action)
+			if ( ! get_transient( 'osb_ignore_sync_' . $booking->id ) ) {
+				$emails = new Ocean_Shiatsu_Booking_Emails();
+				$emails->send_sync_time_change_notice( $booking->id, $gcal_start );
+			}
 		}
 	}
 

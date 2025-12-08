@@ -173,6 +173,66 @@ class Ocean_Shiatsu_Booking_Emails {
 		wp_mail( $to, $subject, $message, $headers );
 	}
 
+	public function send_sync_cancellation_notice( $booking_id, $reason ) {
+		global $wpdb;
+		$appt = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}osb_appointments WHERE id = %d", $booking_id ) );
+		
+		$to = $appt->client_email;
+		$subject = 'Terminänderung: Termin abgesagt';
+		$headers = array('Content-Type: text/html; charset=UTF-8');
+		
+		$message = "<html><body>";
+		$message .= "<p>Hallo " . esc_html( $appt->client_name ) . ",</p>";
+		$message .= "<p>Ihr Termin am " . date('d.m.Y H:i', strtotime($appt->start_time)) . " wurde abgesagt.</p>";
+		$message .= "<p>Grund: " . esc_html( $reason ) . "</p>";
+		$message .= "</body></html>";
+		
+		wp_mail( $to, $subject, $message, $headers );
+		
+		// Notify Admin
+		$admin_email = get_option('admin_email');
+		wp_mail( $admin_email, "Termin abgesagt (GCal Sync): {$appt->client_name}", $message, $headers );
+	}
+
+	public function send_sync_time_change_notice( $booking_id, $new_time ) {
+		global $wpdb;
+		$appt = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}osb_appointments WHERE id = %d", $booking_id ) );
+		
+		$to = $appt->client_email;
+		$subject = 'Terminänderung: Neue Uhrzeit';
+		$headers = array('Content-Type: text/html; charset=UTF-8');
+		
+		$message = "<html><body>";
+		$message .= "<p>Hallo " . esc_html( $appt->client_name ) . ",</p>";
+		$message .= "<p>Ihr Termin wurde auf <strong>" . date('d.m.Y H:i', strtotime($new_time)) . "</strong> verlegt.</p>";
+		$message .= "</body></html>";
+		
+		wp_mail( $to, $subject, $message, $headers );
+		
+		// Notify Admin
+		$admin_email = get_option('admin_email');
+		wp_mail( $admin_email, "Terminverschiebung (GCal Sync): {$appt->client_name}", $message, $headers );
+	}
+
+	public function send_client_rejection( $booking_id ) {
+		global $wpdb;
+		$appt = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}osb_appointments WHERE id = %d", $booking_id ) );
+		if ( ! $appt ) return;
+
+		$to = $appt->client_email;
+		$subject = 'Ihr Termin konnte leider nicht bestätigt werden';
+		$headers = array('Content-Type: text/html; charset=UTF-8');
+
+		$message = "<html><body>";
+		$message .= "<p>Hallo " . esc_html( $appt->client_name ) . ",</p>";
+		$message .= "<p>Wir müssen Ihnen leider mitteilen, dass wir Ihren angefragten Termin am <strong>" . date('d.m.Y H:i', strtotime($appt->start_time)) . "</strong> nicht bestätigen können.</p>";
+		$message .= "<p>Bitte versuchen Sie eine Buchung zu einer anderen Zeit.</p>";
+		$message .= "<p>Mit freundlichen Grüßen,<br>Ihr Ocean Shiatsu Team</p>";
+		$message .= "</body></html>";
+
+		wp_mail( $to, $subject, $message, $headers );
+	}
+
 	private function get_setting( $key ) {
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'osb_settings';

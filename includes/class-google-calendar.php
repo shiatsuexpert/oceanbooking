@@ -66,7 +66,8 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 				$calendars[] = [
 					'id' => $cal->getId(),
 					'summary' => $cal->getSummary(),
-					'primary' => $cal->getPrimary()
+					'primary' => $cal->getPrimary(),
+					'timeZone' => $cal->getTimeZone()
 				];
 			}
 			return $calendars;

@@ -481,6 +481,7 @@ class Ocean_Shiatsu_Booking_Admin {
 			$new_time = date( 'H:i', $start_ts );
 
 			// Try to update time
+			set_transient( 'osb_ignore_sync_' . $appt->id, true, 60 ); // Prevent sync notification loop
 			$updated = $gcal->update_event_time( $appt->gcal_event_id, $new_date, $new_time, $duration );
 			
 			if ( ! $updated ) {
@@ -625,6 +626,18 @@ class Ocean_Shiatsu_Booking_Admin {
 				// Warn if write calendar is not in selected list
 				if ( ! in_array( $write_calendar, $selected_calendars ) ) {
 					echo '<div class="notice notice-warning"><p>⚠️ The write calendar is NOT in your selected calendars! Booking writes will be blocked until you fix this.</p></div>';
+				} else {
+					// AUTO-SYNC TIMEZONE
+					if ( $gcal->is_connected() ) {
+						$all_calendars = $gcal->get_calendar_list();
+						foreach ( $all_calendars as $cal ) {
+							if ( $cal['id'] === $write_calendar && ! empty( $cal['timeZone'] ) ) {
+								$this->update_setting( 'timezone', $cal['timeZone'] );
+								echo '<div class="notice notice-info"><p>Timezone updated to match Google Calendar: <strong>' . esc_html( $cal['timeZone'] ) . '</strong></p></div>';
+								break;
+							}
+						}
+					}
 				}
 			}
 			
