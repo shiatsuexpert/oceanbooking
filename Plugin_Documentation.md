@@ -113,3 +113,35 @@ Managed by `Ocean_Shiatsu_Booking_Google_Calendar` and `class-sync.php`.
 - **API**: REST API under `wp-json/osb/v1/`.
 
 ---
+---
+
+## 8. Debug & Troubleshooting (v1.4.0)
+
+### Enable Debug Mode
+1. Go to **Booking > Settings > General**.
+2. Check **Enable Debug Mode**.
+3. Save Settings.
+
+### Frontend Trace (Browser Console)
+As a logged-in Administrator, open your browser's Developer Tools (F12) > Console.
+- **`🔍 Availability Trace` Group**: Explains why slots were shown or hidden.
+- **Tables**:
+    - **Blockers**: Busy slots from Google Calendar or Local DB.
+    - **Windows**: Calculated free time ranges.
+    - **Candidates**: All potential slots before filtering.
+    - **Selected**: Final slots shown to the user.
+- **Performance**: 'Server-Timing' headers show `db`, `gcal`, and `logic` execution time in the Network tab.
+
+### Cache Inspector
+Go to **Booking > Cache Inspector**.
+- View all active availability caches (`osb_gcal_YYYY-MM-DD`).
+- Check **Expires In** to see when the cache will auto-refresh.
+- Click **Clear** to force a fresh fetch for a specific day.
+
+### Backend Logs
+Go to **Booking > Logs**.
+- **Webhook Logs**: Verify if Google is sending notifications ("Webhook Received").
+- **Sync Logs**: Check "Two-Way Sync Started" and "Cache Updated" entries.
+- **API Logs**: Request payloads (PII masked) and rate limit warnings.
+
+---
