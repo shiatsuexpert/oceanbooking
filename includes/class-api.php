@@ -56,6 +56,12 @@ class Ocean_Shiatsu_Booking_API {
 			'callback' => array( $this, 'get_monthly_availability' ),
 			'permission_callback' => '__return_true', // Public
 		) );
+
+		register_rest_route( 'osb/v1', '/validate-slot', array(
+			'methods'  => 'POST',
+			'callback' => array( $this, 'validate_slot' ),
+			'permission_callback' => '__return_true', // Public
+		) );
 	}
 
 	public function verify_nonce( $request ) {
@@ -162,9 +168,43 @@ class Ocean_Shiatsu_Booking_API {
 			$current = strtotime( $start_date );
 			$end = strtotime( $end_date );
 
+			// Check for Cache Miss on first day (Month Miss Fallback)
+			$pre_fetched_range = null;
+			if ( false === get_transient( 'osb_gcal_' . $start_date ) ) {
+				$gcal = new Ocean_Shiatsu_Booking_Google_Calendar();
+				$pre_fetched_range = $gcal->get_events_range( $start_date, $end_date );
+			}
+
 			while ( $current <= $end ) {
 				$d = date( 'Y-m-d', $current );
-				$slots = $clustering->get_available_slots( $d, $service_id );
+				
+				$day_events = null;
+				if ( is_array( $pre_fetched_range ) ) {
+					// Filter events for this day (Replicating Sync Logic on-the-fly)
+					$day_events = [];
+					$day_start_ts = $current;
+					$day_end_ts = strtotime( '+1 day', $current ) - 1;
+
+					foreach ( $pre_fetched_range as $event ) {
+						// Note: get_events_range returns Normalized Arrays
+						$start_arr = $event['start'];
+						$end_arr = $event['end'];
+						
+						$e_start = isset( $start_arr['dateTime'] ) ? strtotime( $start_arr['dateTime'] ) : ( isset( $start_arr['date'] ) ? strtotime( $start_arr['date'] ) : 0 );
+						$e_end = isset( $end_arr['dateTime'] ) ? strtotime( $end_arr['dateTime'] ) : ( isset( $end_arr['date'] ) ? strtotime( $end_arr['date'] ) : 0 );
+
+						if ( $e_start <= $day_end_ts && $e_end >= $day_start_ts ) {
+							$day_events[] = $event;
+						}
+					}
+
+					// Pre-Warm Cache (Fail-Safe 1h TTL)
+					set_transient( 'osb_gcal_' . $d, $day_events, 3600 );
+				}
+
+				// Pass pre-fetched (or null to use cache)
+				$slots = $clustering->get_available_slots( $d, $service_id, $day_events );
+				
 				if ( ! empty( $slots ) ) {
 					$result[ $d ] = $slots;
 				}
@@ -502,5 +542,41 @@ class Ocean_Shiatsu_Booking_API {
 			set_transient( $key, $current + 1, $window );
 		}
 		return true;
+	}
+	public function validate_slot( $request ) {
+		$params = $request->get_json_params();
+		$date = isset( $params['date'] ) ? $params['date'] : '';
+		$time = isset( $params['time'] ) ? $params['time'] : '';
+		$service_id = isset( $params['service_id'] ) ? intval( $params['service_id'] ) : 0;
+
+		if ( empty( $date ) || empty( $time ) || empty( $service_id ) ) {
+			return new WP_Error( 'missing_params', 'Missing required parameters', array( 'status' => 400 ) );
+		}
+
+		// Security: Rate Limit + Nonce?
+		// Nonce is not required for public validation if we want it fast?
+		// But let's check rate limit at least.
+		$limit_check = $this->check_rate_limit();
+		if ( is_wp_error( $limit_check ) ) {
+			return $limit_check;
+		}
+
+		// Check Google Calendar Live (Skip Cache)
+		$gcal = new Ocean_Shiatsu_Booking_Google_Calendar();
+		$clustering = new Ocean_Shiatsu_Booking_Clustering();
+
+		// Force fresh fetch from Google (Gap 1/5 Safety: Validation must use live data)
+		// We use true for skip_cache
+		$day_events = $gcal->get_events_for_date( $date, true );
+
+		// Recalculate available slots with fresh data
+		$slots = $clustering->get_available_slots( $date, $service_id, $day_events );
+
+		// Check if requested time is still available
+		if ( in_array( $time, $slots ) ) {
+			return rest_ensure_response( array( 'valid' => true ) );
+		} else {
+			return new WP_Error( 'conflict', 'Dieser Termin ist leider bereits vergeben. Bitte wähle einen anderen.', array( 'status' => 409 ) );
+		}
 	}
 }

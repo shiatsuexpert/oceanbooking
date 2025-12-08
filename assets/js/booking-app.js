@@ -381,8 +381,41 @@ const osbApp = {
         event.target.closest('button').classList.add('btn-primary', 'text-white');
         event.target.closest('button').classList.remove('btn-outline-secondary');
 
-        // Auto advance after short delay
-        setTimeout(() => this.nextStep(), 300);
+        // Validate on Server before advancing (Safety Barrier)
+        setTimeout(() => this.validateAndNext(), 300);
+    },
+
+    validateAndNext: function () {
+        this.showLoading(true);
+        const data = {
+            date: this.state.date,
+            time: this.state.time,
+            service_id: this.state.serviceId
+        };
+
+        fetch(`${osbData.apiUrl}validate-slot`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+            .then(res => res.json())
+            .then(data => {
+                this.showLoading(false);
+                if (data.valid) {
+                    this.nextStep();
+                } else {
+                    // Invalid/Taken
+                    alert(data.message || 'Dieser Termin ist leider bereits vergeben. Bitte wähle einen anderen.');
+                    // Force refresh slots
+                    delete this.state.availabilityCache[this.state.date]; // Clear cache for this day
+                    this.fetchSlots();
+                }
+            })
+            .catch(err => {
+                this.showLoading(false);
+                console.error(err);
+                alert('Ein Fehler ist aufgetreten. Bitte versuche es erneut.');
+            });
     },
 
     submitBooking: function (e) {

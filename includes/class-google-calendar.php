@@ -119,13 +119,16 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 		return $write_calendar;
 	}
 
-	public function get_events_for_date( $date ) {
+	public function get_events_for_date( $date, $skip_cache = false ) {
 		if ( ! $this->is_connected ) return [];
 
 		$cache_key = 'osb_gcal_' . $date;
-		$cached_events = get_transient( $cache_key );
-		if ( false !== $cached_events ) {
-			return $cached_events;
+		
+		if ( ! $skip_cache ) {
+			$cached_events = get_transient( $cache_key );
+			if ( false !== $cached_events ) {
+				return $cached_events;
+			}
 		}
 
 		$start = $date . 'T00:00:00Z';
@@ -160,10 +163,23 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 						}
 					}
 
+					// Normalize Start/End to arrays to ensure compatibility with array syntax downstream
+					// and avoid dependency on Google_Model ArrayAccess or serialization issues (Gap 2 Fix)
+					$start_data = [
+						'date'     => $event->start->date,
+						'dateTime' => $event->start->dateTime,
+						'timeZone' => $event->start->timeZone,
+					];
+					$end_data = [
+						'date'     => $event->end->date,
+						'dateTime' => $event->end->dateTime,
+						'timeZone' => $event->end->timeZone,
+					];
+
 					$all_events[] = [
 						'id' => $event->getId(),
-						'start' => $event->start,
-						'end' => $event->end,
+						'start' => $start_data,
+						'end' => $end_data,
 						'summary' => $event->getSummary(),
 						'is_all_day' => $is_all_day
 					];
@@ -173,21 +189,19 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 			}
 		}
 
-		set_transient( $cache_key, $all_events, 60 );
+		set_transient( $cache_key, $all_events, 3600 );
 		return $all_events;
 	}
 
 	public function get_events_range( $start_date, $end_date ) {
 		if ( ! $this->is_connected ) return [];
 
+		// Check Cache (Optional: Cache the *entire* range? It might be large.
+		// For now, let's rely on short API transients handled by the caller or no cache for range.)
+		
 		$start = $start_date . 'T00:00:00Z';
 		$end = $end_date . 'T23:59:59Z';
-		$calendars = $this->get_selected_calendars(); // Sync all selected? Or just primary?
-		// Usually we only want to sync PRIMARY events to WP DB for management.
-		// Private events are just for blocking.
-		// Let's sync ALL selected, but maybe mark them?
-		// For now, let's sync all selected.
-
+		$calendars = $this->get_selected_calendars();
 		$all_events = [];
 
 		foreach ( $calendars as $cal_id ) {
@@ -197,22 +211,71 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 					'singleEvents' => true,
 					'timeMin' => $start,
 					'timeMax' => $end,
-					'maxResults' => 250,
+					'maxResults' => 2500, // Fetch more for a range
 				);
+				
+				// Handle pagination if needed, but 2500 events/month is a lot
 				$results = $this->service->events->listEvents( $cal_id, $optParams );
 				
-				foreach ( $results->getItems() as $event ) {
-					$all_events[] = [
-						'id' => $event->getId(),
-						'start' => $event->start->dateTime ?: $event->start->date,
-						'end' => $event->end->dateTime ?: $event->end->date,
-						'summary' => $event->getSummary()
-					];
-				}
+				$cal_events = [];
+				do {
+					foreach ( $results->getItems() as $event ) {
+						// Detect All-Day events or events spanning the entire day
+						$is_all_day = false;
+						if ( isset( $event->start->date ) && ! isset( $event->start->dateTime ) ) {
+							$is_all_day = true;
+						} else if ( isset( $event->start->dateTime ) ) {
+							// For range queries, "spanning the entire day" is complex because we are looking at multiple days.
+							// But we store the property on the event.
+							// The consumer (Clustering or Sync) will check overlap with specific days.
+							// However, let's keep the flag if it spans > 24 hours
+							$ts_start = strtotime( $event->start->dateTime );
+							$ts_end = strtotime( $event->end->dateTime );
+							if ( ( $ts_end - $ts_start ) >= 86400 ) {
+								$is_all_day = true;
+							}
+						}
+
+						// Normalize Start/End to arrays to ensure compatibility with array syntax downstream
+						// and avoid dependency on Google_Model ArrayAccess
+						$start_data = [
+							'date'     => $event->start->date,
+							'dateTime' => $event->start->dateTime,
+							'timeZone' => $event->start->timeZone,
+						];
+						$end_data = [
+							'date'     => $event->end->date,
+							'dateTime' => $event->end->dateTime,
+							'timeZone' => $event->end->timeZone,
+						];
+
+						$cal_events[] = [
+							'id' => $event->getId(),
+							'start' => $start_data,
+							'end' => $end_data,
+							'summary' => $event->getSummary(),
+							'is_all_day' => $is_all_day,
+							'calendar_id' => $cal_id // Debug info
+						];
+					}
+					
+					// Get next page
+					$pageToken = $results->getNextPageToken();
+					if ( $pageToken ) {
+						$optParams['pageToken'] = $pageToken;
+						$results = $this->service->events->listEvents( $cal_id, $optParams );
+					} else {
+						break;
+					}
+				} while ( $pageToken );
+
+				$all_events = array_merge( $all_events, $cal_events );
+
 			} catch ( Exception $e ) {
 				error_log( "OSB GCal Range Error ($cal_id): " . $e->getMessage() );
 			}
 		}
+
 		return $all_events;
 	}
 

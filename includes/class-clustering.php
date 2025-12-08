@@ -17,7 +17,7 @@ class Ocean_Shiatsu_Booking_Clustering {
 	 * @param int $service_id
 	 * @return array List of available start times (e.g., ['09:00', '10:15'])
 	 */
-	public function get_available_slots( $date, $service_id ) {
+	public function get_available_slots( $date, $service_id, $pre_fetched_events = null ) {
 		global $wpdb;
 		$is_debug = is_user_logged_in();
 
@@ -46,7 +46,8 @@ class Ocean_Shiatsu_Booking_Clustering {
 		$biz_end_ts = ( new DateTime( $date . ' ' . $working_hours['end'], $tz ) )->getTimestamp();
 
 		// 4. Fetch Busy Slots (Local + GCal) - already includes all-day handling
-		$busy_slots = $this->get_busy_slots( $date );
+		// Pass pre_fetched_events to optimize N+1
+		$busy_slots = $this->get_busy_slots( $date, $pre_fetched_events );
 		if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Clustering', "Found " . count($busy_slots) . " busy slots", $busy_slots );
 
 		// 5. Calculate Free Windows (with bidirectional prep buffers)
@@ -277,7 +278,7 @@ class Ocean_Shiatsu_Booking_Clustering {
 		return array_slice( $result, 0, $show_count );
 	}
 
-	private function get_busy_slots( $date ) {
+	private function get_busy_slots( $date, $pre_fetched_events = null ) {
 		global $wpdb;
 		$busy = [];
 		$is_debug = is_user_logged_in();
@@ -285,8 +286,15 @@ class Ocean_Shiatsu_Booking_Clustering {
 		if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Clustering', "Fetching busy slots for $date" );
 
 		// 1. Fetch Google Calendar Events (The "Source of Truth")
-		$gcal_events = $this->gcal->get_events_for_date( $date );
-		$gcal_active = ( $gcal_events !== false );
+		// OPTIMIZATION: Use pre-fetched events if available (Sync Job N+1 Fix)
+		if ( is_array( $pre_fetched_events ) ) {
+			$gcal_events = $pre_fetched_events;
+			$gcal_active = true;
+		} else {
+			// Fallback to daily fetch (Frontend click)
+			$gcal_events = $this->gcal->get_events_for_date( $date );
+			$gcal_active = ( $gcal_events !== false );
+		}
 
 		if ( $gcal_active ) {
 			if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Clustering', "Google Calendar is active. Processing GCal events." );
