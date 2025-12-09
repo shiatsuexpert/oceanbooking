@@ -2,6 +2,20 @@
 
 # Release Notes
 
+## [1.4.4] - 2025-12-09
+### Fixed
+- **Sync Date Corruption:** Fixed `1970-01-01` dates when syncing from Google (array vs string parsing).
+- **Cron Self-Healing:** 15-min sync job now auto-registers if missing after plugin updates.
+
+### Added
+- **System Status Dashboard:** Settings page now shows cron health, next sync time, last sync timestamp.
+- **Settings-Triggered Sync:** Saving settings or calendars immediately triggers availability recalculation.
+- **Enhanced Webhook Logging:** Webhooks now log full data (resource_uri, message_number, timestamp).
+- **Delayed Loading Indicator:** Spinner only shows if month fetch takes >300ms.
+
+### Documentation
+- Complete rewrite of `timeslots calculation and sync.md` with accurate cache-first architecture.
+
 ## [1.4.3] - 2025-12-09
 ### Fixed
 - **Critical Fix:** Resolved a PHP Fatal Error when saving calendar settings (`undefined variable $gcal`).

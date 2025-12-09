@@ -511,16 +511,22 @@ class Ocean_Shiatsu_Booking_API {
 	}
 
 	public function handle_webhook( $request ) {
-		$channel_id = $request->get_header( 'X-Goog-Channel-ID' );
-		$resource_id = $request->get_header( 'X-Goog-Resource-ID' );
-		$resource_state = $request->get_header( 'X-Goog-Resource-State' );
-		$token = $request->get_header( 'X-Goog-Channel-Token' );
+	$channel_id = $request->get_header( 'X-Goog-Channel-ID' );
+	$resource_id = $request->get_header( 'X-Goog-Resource-ID' );
+	$resource_state = $request->get_header( 'X-Goog-Resource-State' );
+	$token = $request->get_header( 'X-Goog-Channel-Token' );
+	$resource_uri = $request->get_header( 'X-Goog-Resource-URI' );
+	$message_number = $request->get_header( 'X-Goog-Message-Number' );
 
-		// Log Receipt
-		Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'API', 'Webhook Received', [
-			'state' => $resource_state, 
-			'channel' => $channel_id
-		] );
+	// Log EVERY webhook with full data
+	Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Webhook', 'Webhook Received', [
+		'state'          => $resource_state, 
+		'channel_id'     => $channel_id,
+		'resource_id'    => $resource_id,
+		'resource_uri'   => $resource_uri,
+		'message_number' => $message_number,
+		'timestamp'      => current_time( 'mysql' )
+	] );
 
 		// 1. Verify Token
 		$stored_token = get_option( 'osb_webhook_token' );

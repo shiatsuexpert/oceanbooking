@@ -25,6 +25,12 @@ class Ocean_Shiatsu_Booking_Sync {
 		
 		// Add custom cron schedule if not exists (every 15 mins)
 		add_filter( 'cron_schedules', array( $this, 'add_cron_interval' ) );
+
+		// SELF-HEALING: Ensure cron is scheduled even after updates (fix for missing cron)
+		if ( ! wp_next_scheduled( 'osb_cron_sync_events' ) ) {
+			wp_schedule_event( time(), 'every_15_mins', 'osb_cron_sync_events' );
+			Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Sync', 'Cron was not scheduled. Self-healed by registering osb_cron_sync_events.' );
+		}
 	}
 
 	public function add_cron_interval( $schedules ) {

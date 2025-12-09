@@ -239,14 +239,25 @@ const osbApp = {
 
         const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
 
+        // Delayed loading: only show spinner if fetch takes > 300ms
+        let loadingShown = false;
+        const loadingTimeout = setTimeout(() => {
+            loadingShown = true;
+            this.showLoading(true);
+        }, 300);
+
         fetch(`${osbData.apiUrl}availability/month?service_id=${this.state.serviceId}&month=${monthStr}`)
             .then(res => res.json())
             .then(data => {
                 this.state.monthlyAvailability = data;
-                this.updateCalendarUI(); // This assumes we have a custom UI
+                this.updateCalendarUI();
             })
             .catch(err => {
                 console.error('Failed to fetch monthly availability:', err);
+            })
+            .finally(() => {
+                clearTimeout(loadingTimeout);
+                if (loadingShown) this.showLoading(false);
             });
     },
 

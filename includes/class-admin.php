@@ -480,8 +480,12 @@ class Ocean_Shiatsu_Booking_Admin {
 				$event['id'] 
 			) );
 
-			$start_time = date( 'Y-m-d H:i:s', strtotime( $event['start'] ) );
-			$end_time = date( 'Y-m-d H:i:s', strtotime( $event['end'] ) );
+			// Fix: Handle normalized array structure from get_events_range
+			$start_str = $event['start']['dateTime'] ?: $event['start']['date'];
+			$end_str   = $event['end']['dateTime'] ?: $event['end']['date'];
+			
+			$start_time = date( 'Y-m-d H:i:s', strtotime( $start_str ) );
+			$end_time = date( 'Y-m-d H:i:s', strtotime( $end_str ) );
 			$summary = $event['summary'] ?: 'Google Event';
 
 			if ( $existing_id ) {
@@ -680,7 +684,16 @@ class Ocean_Shiatsu_Booking_Admin {
 
 			$this->save_settings();
 			Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Admin', 'Settings Saved' );
-			echo '<div class="notice notice-success"><p>Settings saved.</p></div>';
+			
+			// Trigger immediate sync to reflect settings changes
+			$sync = new Ocean_Shiatsu_Booking_Sync();
+			$current_month = date('Y-m');
+			$next_month = date('Y-m', strtotime('+1 month'));
+			$sync->calculate_monthly_availability( $current_month );
+			$sync->calculate_monthly_availability( $next_month );
+			Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Admin', 'Settings Change Triggered Sync' );
+			
+			echo '<div class="notice notice-success"><p>Settings saved. Availability recalculated.</p></div>';
 		}
 
 		// Handle Disconnect
@@ -722,7 +735,16 @@ class Ocean_Shiatsu_Booking_Admin {
 			}
 			
 			Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Admin', 'Calendars Selected', $selected_calendars );
-			echo '<div class="notice notice-success"><p>Calendar selection saved.</p></div>';
+			
+			// Trigger immediate sync to reflect calendar changes
+			$sync = new Ocean_Shiatsu_Booking_Sync();
+			$current_month = date('Y-m');
+			$next_month = date('Y-m', strtotime('+1 month'));
+			$sync->calculate_monthly_availability( $current_month );
+			$sync->calculate_monthly_availability( $next_month );
+			Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Admin', 'Calendar Change Triggered Sync' );
+			
+			echo '<div class="notice notice-success"><p>Calendar selection saved. Availability recalculated.</p></div>';
 		}
 
 		// Handle Cache Clear (Inspector)
@@ -751,6 +773,49 @@ class Ocean_Shiatsu_Booking_Admin {
 		?>
 		<div class="wrap">
 			<h1>Settings</h1>
+
+			<?php
+			// === SYSTEM STATUS BOX ===
+			$next_sync = wp_next_scheduled( 'osb_cron_sync_events' );
+			$last_sync = $this->get_setting( 'gcal_last_sync_token' );
+			$next_watch_renewal = wp_next_scheduled( 'osb_cron_renew_watches' );
+			?>
+			<div style="background: #f0f0f1; border-left: 4px solid #2271b1; padding: 12px 15px; margin-bottom: 20px;">
+				<h3 style="margin-top: 0;">🔧 System Status</h3>
+				<table style="font-size: 13px;">
+					<tr>
+						<td><strong>15-Min Sync Cron:</strong></td>
+						<td>
+							<?php if ( $next_sync ) : ?>
+								✅ Scheduled — Next run: <code><?php echo esc_html( date( 'Y-m-d H:i:s', $next_sync ) ); ?></code>
+							<?php else : ?>
+								❌ <span style="color: red;">NOT SCHEDULED</span> — Try deactivating and reactivating the plugin.
+							<?php endif; ?>
+						</td>
+					</tr>
+					<tr>
+						<td><strong>Last Sync:</strong></td>
+						<td>
+							<?php if ( $last_sync ) : ?>
+								<code><?php echo esc_html( $last_sync ); ?></code>
+							<?php else : ?>
+								<em>Never synced</em>
+							<?php endif; ?>
+						</td>
+					</tr>
+					<tr>
+						<td><strong>Webhook Watch Renewal:</strong></td>
+						<td>
+							<?php if ( $next_watch_renewal ) : ?>
+								✅ Scheduled — Next run: <code><?php echo esc_html( date( 'Y-m-d H:i:s', $next_watch_renewal ) ); ?></code>
+							<?php else : ?>
+								⚠️ Not scheduled (webhooks may expire)
+							<?php endif; ?>
+						</td>
+					</tr>
+				</table>
+			</div>
+
 			<form method="post">
 				<?php wp_nonce_field( 'osb_save_settings_verify', 'osb_save_settings' ); ?>
 				
