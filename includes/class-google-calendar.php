@@ -181,7 +181,8 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 						'start' => $start_data,
 						'end' => $end_data,
 						'summary' => $event->getSummary(),
-						'is_all_day' => $is_all_day
+						'is_all_day' => $is_all_day,
+						'calendar_id' => $cal_id
 					];
 				}
 			} catch ( Exception $e ) {

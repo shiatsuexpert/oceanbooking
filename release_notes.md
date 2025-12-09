@@ -2,6 +2,13 @@
 
 # Release Notes
 
+## [1.4.2] - 2025-12-09
+### Changed
+- **Max Bookings Logic:** The "Max Bookings Per Day" limit now STRICTLY counts events that are either:
+    1. Local WordPress Appointments.
+    2. Google Calendar events in the configured **Write Calendar** (Working Calendar).
+    *Events in other read-only calendars (like Personal or Holidays) still block time slots but DO NOT increment the booking count.*
+
 ## [1.4.1] - 2025-12-09
 ### Added
 - **Max Bookings Refinement:** The "Max Bookings Per Day" setting now strictly counts ALL busy events (Google Calendar + Local) towards the daily limit.

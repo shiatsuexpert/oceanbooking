@@ -69,19 +69,19 @@ class Ocean_Shiatsu_Booking_Clustering {
 			$this->last_debug_log['steps'][] = "Found " . count($busy_slots) . " blockers.";
 		}
 
-		// 4b. Max Bookings Check (v1.4.1)
+		// 4b. Max Bookings Check (v1.4.2)
+		// Logic: Count only events from the "Write Calendar" (Working Calendar) or Local Bookings.
 		$max_bookings = intval( $this->get_setting( 'max_bookings_per_day' ) );
 		if ( $max_bookings > 0 ) {
-			// Count distinct busy slots (GCal + Local)
-			// Note: overlapping events might count multiple times if distinct? 
-			// get_busy_slots returns merged array if they are identical? No, it appends.
-			// Ideally we count 'events', but busy_slots array is just a list of time ranges.
-			// Let's count the number of busy entries as a proxy for 'bookings'.
-			// This is conservative: 2 overlapping events = 2 bookings.
-			$current_bookings = count( $busy_slots );
+			$daily_bookings = 0;
+			foreach ($busy_slots as $slot) {
+				if ( ! empty( $slot['is_booking'] ) ) {
+					$daily_bookings++;
+				}
+			}
 			
-			if ( $current_bookings >= $max_bookings ) {
-				if ( $is_debug ) $this->last_debug_log['steps'][] = "Max Bookings Reached ($current_bookings >= $max_bookings). Day Closed.";
+			if ( $daily_bookings >= $max_bookings ) {
+				if ( $is_debug ) $this->last_debug_log['steps'][] = "Max Bookings Reached ($daily_bookings >= $max_bookings). Day Closed.";
 				return []; // Day is fully booked
 			}
 		}
@@ -348,8 +348,19 @@ class Ocean_Shiatsu_Booking_Clustering {
 
 		if ( $gcal_active ) {
 			if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Clustering', "Google Calendar is active. Processing GCal events." );
+			
+			// Get Write Calendar ID for "Booking" classification
+			$write_calendar_id = $this->get_setting('gcal_write_calendar');
+
 			// GCal is active: Use its events
 			foreach ( $gcal_events as $event ) {
+				$is_booking = false;
+
+				// Check if event is from Write Calendar
+				if ( $write_calendar_id && isset( $event['calendar_id'] ) && $event['calendar_id'] === $write_calendar_id ) {
+					$is_booking = true;
+				}
+
 				// Check if it's an all-day event (no dateTime)
 				if ( ! isset( $event['start']['dateTime'] ) ) {
 					// All-day event: Block entire day? 
@@ -360,7 +371,8 @@ class Ocean_Shiatsu_Booking_Clustering {
 					$busy[] = [
 						'start' => '00:00',
 						'end'   => '23:59',
-						'reason' => 'All-Day Event / Holiday'
+						'reason' => 'All-Day Event / Holiday',
+						'is_booking' => $is_booking
 					];
 					if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Clustering', "GCal All-Day Event: Blocking full day" );
 					continue;
@@ -375,12 +387,11 @@ class Ocean_Shiatsu_Booking_Clustering {
 				
 				$start_gcal = $event_start->format( 'H:i' );
 				$end_gcal = $event_end->format( 'H:i' );
-				$start_gcal = $event_start->format( 'H:i' );
-				$end_gcal = $event_end->format( 'H:i' );
 				$busy[] = [
 					'start' => $start_gcal,
 					'end'   => $end_gcal,
-					'reason' => 'GCal Event: ' . ( isset($event['summary']) ? $event['summary'] : 'Busy' )
+					'reason' => 'GCal Event: ' . ( isset($event['summary']) ? $event['summary'] : 'Busy' ),
+					'is_booking' => $is_booking
 				];
 				if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Clustering', "GCal Event: $start_gcal - $end_gcal" );
 			}
@@ -417,12 +428,11 @@ class Ocean_Shiatsu_Booking_Clustering {
 			if ( $appt->start_time ) {
 				$start_local = date( 'H:i', strtotime( $appt->start_time ) );
 				$end_local = date( 'H:i', strtotime( $appt->end_time ) );
-				$start_local = date( 'H:i', strtotime( $appt->start_time ) );
-				$end_local = date( 'H:i', strtotime( $appt->end_time ) );
 				$busy[] = [
 					'start' => $start_local,
 					'end'   => $end_local,
-					'reason' => 'Local Booking: ' . $appt->status
+					'reason' => 'Local Booking: ' . $appt->status,
+					'is_booking' => true // Local bookings always count
 				];
 				if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Clustering', "Local Appt (Original): $start_local - $end_local (Status: {$appt->status})" );
 			}
@@ -431,12 +441,11 @@ class Ocean_Shiatsu_Booking_Clustering {
 			if ( $appt->status === 'admin_proposal' && $appt->proposed_start_time ) {
 				$start_proposed = date( 'H:i', strtotime( $appt->proposed_start_time ) );
 				$end_proposed = date( 'H:i', strtotime( $appt->proposed_end_time ) );
-				$start_proposed = date( 'H:i', strtotime( $appt->proposed_start_time ) );
-				$end_proposed = date( 'H:i', strtotime( $appt->proposed_end_time ) );
 				$busy[] = [
 					'start' => $start_proposed,
 					'end'   => $end_proposed,
-					'reason' => 'Admin Proposal'
+					'reason' => 'Admin Proposal',
+					'is_booking' => true // Pending proposals count too
 				];
 				if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'DEBUG', 'Clustering', "Local Appt (Proposed): $start_proposed - $end_proposed (Status: {$appt->status})" );
 			}
