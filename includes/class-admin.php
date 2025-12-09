@@ -707,6 +707,7 @@ class Ocean_Shiatsu_Booking_Admin {
 					echo '<div class="notice notice-warning"><p>⚠️ The write calendar is NOT in your selected calendars! Booking writes will be blocked until you fix this.</p></div>';
 				} else {
 					// AUTO-SYNC TIMEZONE
+					$gcal = new Ocean_Shiatsu_Booking_Google_Calendar();
 					if ( $gcal->is_connected() ) {
 						$all_calendars = $gcal->get_calendar_list();
 						foreach ( $all_calendars as $cal ) {

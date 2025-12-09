@@ -2,6 +2,10 @@
 
 # Release Notes
 
+## [1.4.3] - 2025-12-09
+### Fixed
+- **Critical Fix:** Resolved a PHP Fatal Error when saving calendar settings (`undefined variable $gcal`).
+
 ## [1.4.2] - 2025-12-09
 ### Changed
 - **Max Bookings Logic:** The "Max Bookings Per Day" limit now STRICTLY counts events that are either:
