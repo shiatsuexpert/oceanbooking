@@ -979,6 +979,10 @@ class Ocean_Shiatsu_Booking_Admin {
 			$this->update_setting( 'max_bookings_per_day', intval( $_POST['max_bookings_per_day'] ) );
 		}
 		$this->update_setting( 'all_day_is_holiday', isset( $_POST['all_day_is_holiday'] ) ? '1' : '0' );
+		
+		// Debug Mode
+		$this->update_setting( 'osb_enable_debug', isset( $_POST['osb_enable_debug'] ) ? '1' : '0' );
+
 		if ( isset( $_POST['holiday_keywords'] ) ) {
 			$this->update_setting( 'holiday_keywords', sanitize_textarea_field( $_POST['holiday_keywords'] ) );
 		}

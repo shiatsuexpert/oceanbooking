@@ -62,12 +62,28 @@ class Ocean_Shiatsu_Booking_Clustering {
 		$biz_end_ts = ( new DateTime( $date . ' ' . $working_hours['end'], $tz ) )->getTimestamp();
 
 		// 4. Fetch Busy Slots (Local + GCal) - already includes all-day handling
-		// 4. Fetch Busy Slots (Local + GCal) - already includes all-day handling
 		// Pass pre_fetched_events to optimize N+1
 		$busy_slots = $this->get_busy_slots( $date, $pre_fetched_events );
 		if ( $is_debug ) {
 			$this->last_debug_log['blockers'] = $busy_slots;
 			$this->last_debug_log['steps'][] = "Found " . count($busy_slots) . " blockers.";
+		}
+
+		// 4b. Max Bookings Check (v1.4.1)
+		$max_bookings = intval( $this->get_setting( 'max_bookings_per_day' ) );
+		if ( $max_bookings > 0 ) {
+			// Count distinct busy slots (GCal + Local)
+			// Note: overlapping events might count multiple times if distinct? 
+			// get_busy_slots returns merged array if they are identical? No, it appends.
+			// Ideally we count 'events', but busy_slots array is just a list of time ranges.
+			// Let's count the number of busy entries as a proxy for 'bookings'.
+			// This is conservative: 2 overlapping events = 2 bookings.
+			$current_bookings = count( $busy_slots );
+			
+			if ( $current_bookings >= $max_bookings ) {
+				if ( $is_debug ) $this->last_debug_log['steps'][] = "Max Bookings Reached ($current_bookings >= $max_bookings). Day Closed.";
+				return []; // Day is fully booked
+			}
 		}
 
 		// 5. Calculate Free Windows (with bidirectional prep buffers)

@@ -1,5 +1,15 @@
 # Release Notes
 
+# Release Notes
+
+## [1.4.1] - 2025-12-09
+### Added
+- **Max Bookings Refinement:** The "Max Bookings Per Day" setting now strictly counts ALL busy events (Google Calendar + Local) towards the daily limit.
+- **Documentation:** Updated `timeslots calculation and sync.md` with new enforcement rules.
+
+### Fixed
+- Fixed bug where 'Enable Debug Mode' checkbox was not saving in Admin Settings.
+
 ## [1.4.0] - 2025-12-08
 ### Added
 - **Debug Mode:** Detailed visibility into availability logic, enabled via Settings.
