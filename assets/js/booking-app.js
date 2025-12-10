@@ -11,39 +11,11 @@ const osbApp = {
 
     init: function () {
         // Set min date to today
-        const today = new Date().toISOString().split('T')[0];
+        const today = new Date();
         const datePicker = document.getElementById('osb-date-picker');
-        datePicker.setAttribute('min', today);
+        datePicker.setAttribute('min', this.formatDateLocal(today));
 
-        // Add event listener for month change (if possible with native picker?)
-        // Native date pickers don't easily expose month change events.
-        // But we can fetch current month on load and when value changes.
-        // Actually, for native pickers, we can't easily gray out specific dates visually 
-        // without a custom UI or using the `step` attribute which doesn't help here.
-        // Wait, the requirement was "show booked out days".
-        // Native HTML5 date inputs don't support disabling specific dates.
-        // We might need to switch to a custom date picker library (like Flatpickr) or just show a list?
-        // The user's screenshot showed a custom-looking picker (or maybe it was just a mock?).
-        // If we are using native <input type="date">, we CANNOT gray out days.
-        // Let's check the template.
-
-        // Assuming we might need to switch to a custom picker later, but for now let's implement the logic 
-        // and maybe just validate on selection? 
-        // OR, if the user provided image showed a calendar, maybe we are supposed to build one?
-        // The user said "As soon as the user clicks on the arrow right (next month)". 
-        // This implies a custom picker. 
-        // But the current code uses <input type="date">.
-        // Let's assume for now we just pre-fetch and maybe show a visual indication below?
-        // OR, we are expected to implement a custom picker.
-        // Given the "premium" requirement, a custom picker is likely needed.
-        // But that's a big change.
-        // Let's look at the screenshot again.
-        // The screenshot shows a custom calendar UI.
-        // So I need to implement a custom calendar UI or use a library.
-        // Since I can't easily add a library without npm/build, I might need to build a simple one 
-        // or use a CDN link if allowed. 
-        // But the prompt says "Vanilla JS".
-        // I will build a simple custom calendar UI to replace the native input.
+        // ... (rest of init)
 
         this.renderCalendar(new Date());
 
@@ -55,6 +27,14 @@ const osbApp = {
         if (action && token) {
             this.handleExternalAction(action, token);
         }
+    },
+
+    // Helper to fix Timezone Off-By-One Bug
+    formatDateLocal: function (date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
     },
 
     traceDebug: function (debug) {
@@ -155,7 +135,7 @@ const osbApp = {
         // Days
         for (let day = 1; day <= daysInMonth; day++) {
             const currentDayDate = new Date(year, month, day);
-            const dateStr = currentDayDate.toISOString().split('T')[0];
+            const dateStr = this.formatDateLocal(currentDayDate);
 
             let classes = 'osb-calendar-day';
             let onclick = `onclick="osbApp.selectDate('${dateStr}')"`;
@@ -253,7 +233,7 @@ const osbApp = {
             this.showLoading(true);
         }, 300);
 
-        fetch(`${osbData.apiUrl}availability/month?service_id=${this.state.serviceId}&month=${monthStr}`)
+        fetch(`${osbData.apiUrl}availability/month?service_id=${this.state.serviceId}&month=${monthStr}&_t=${new Date().getTime()}`)
             .then(res => res.json())
             .then(data => {
                 this.state.monthlyAvailability = data;
@@ -378,8 +358,8 @@ const osbApp = {
         const endDate = new Date();
         endDate.setDate(today.getDate() + 14);
 
-        const startStr = today.toISOString().split('T')[0];
-        const endStr = endDate.toISOString().split('T')[0];
+        const startStr = this.formatDateLocal(today);
+        const endStr = this.formatDateLocal(endDate);
 
         console.log('Pre-fetching availability:', startStr, 'to', endStr);
 

@@ -198,6 +198,16 @@ class Ocean_Shiatsu_Booking_Admin {
 			$services_count = $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}osb_services" );
 			$table_status_after = $wpdb->get_results( "SHOW TABLE STATUS LIKE '$table_name'" );
 			
+			// EXTRA: Check working_days setting
+			$working_days_raw = $wpdb->get_var( "SELECT setting_value FROM {$wpdb->prefix}osb_settings WHERE setting_key = 'working_days'" );
+			$working_days = $working_days_raw ? json_decode($working_days_raw, true) : ['1','2','3','4','5'];
+			
+			// Sample check: What would Dec 1, 2025 (Monday) be?
+			$test_ts = strtotime('2025-12-01');
+			$test_day_num = date('N', $test_ts); // Should be 1 (Monday)
+			$test_day_name = date('l', $test_ts); // Should be "Monday"
+			$test_is_working = in_array((string)$test_day_num, array_map('strval', $working_days));
+			
 			// 3. Trigger immediate rebuild
 			$sync = new Ocean_Shiatsu_Booking_Sync();
 			$first_of_month = strtotime( date('Y-m-01') );
@@ -219,6 +229,8 @@ class Ocean_Shiatsu_Booking_Admin {
 			$msg .= "<li>Index Table Exists: " . (empty($table_status_after) ? 'NO' : 'YES') . "</li>";
 			$msg .= "<li>Rows Inserted (Current Month): $c1</li>";
 			$msg .= "<li>Rows Inserted (Next Month): $c2</li>";
+			$msg .= "<li><strong>Working Days (DB):</strong> " . esc_html($working_days_raw) . "</li>";
+			$msg .= "<li><strong>Test: 2025-12-01</strong> = Day $test_day_num ($test_day_name), Is Working: " . ($test_is_working ? 'YES' : 'NO') . "</li>";
 			$msg .= "</ul>";
 			$msg .= "<p>If Rows Inserted is 0, check your 'Working Days' settings or add a Service.</p>";
 
