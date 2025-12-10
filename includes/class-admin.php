@@ -165,12 +165,38 @@ class Ocean_Shiatsu_Booking_Admin {
 			$wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_osb_gcal_%'" );
 			$wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_timeout_osb_gcal_%'" );
 			
-			// 2. Truncate availability index
-			$wpdb->query( "TRUNCATE TABLE {$wpdb->prefix}osb_availability_index" );
+			// 2. CHECK & REPAIR: Ensure table exists
+			$table_name = $wpdb->prefix . 'osb_availability_index';
+			$table_status = $wpdb->get_results( "SHOW TABLE STATUS LIKE '$table_name'" );
+			
+			$repaired = false;
+			if ( empty( $table_status ) ) {
+				// Table missing! Create it.
+				$charset_collate = $wpdb->get_charset_collate();
+				$sql = "CREATE TABLE $table_name (
+					id mediumint(9) NOT NULL AUTO_INCREMENT,
+					date date NOT NULL,
+					service_id mediumint(9) NOT NULL,
+					status varchar(20) DEFAULT 'available' NOT NULL,
+					is_fully_booked boolean DEFAULT 0 NOT NULL,
+					last_updated datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
+					PRIMARY KEY  (id),
+					UNIQUE KEY date_service (date, service_id),
+					KEY date (date)
+				) $charset_collate;";
+				
+				require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
+				dbDelta( $sql );
+				$repaired = true;
+				Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Admin', 'Repaired missing availability table.' );
+			}
+
+			// Now Truncate
+			$wpdb->query( "TRUNCATE TABLE $table_name" );
 			
 			// DIAGNOSTIC START
 			$services_count = $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}osb_services" );
-			$table_status = $wpdb->get_results( "SHOW TABLE STATUS LIKE '{$wpdb->prefix}osb_availability_index'" );
+			$table_status_after = $wpdb->get_results( "SHOW TABLE STATUS LIKE '$table_name'" );
 			
 			// 3. Trigger immediate rebuild
 			$sync = new Ocean_Shiatsu_Booking_Sync();
@@ -184,10 +210,13 @@ class Ocean_Shiatsu_Booking_Admin {
 			Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Admin', 'Cache Wiped & Rebuilt', ['c1'=>$c1, 'c2'=>$c2] );
 			
 			$msg = "<p>✅ All cache wiped.</p>";
+			if ($repaired) {
+				$msg .= "<p><strong>⚠️ REPAIRED:</strong> Missing database table was recreated!</p>";
+			}
 			$msg .= "<p><strong>Diagnostics:</strong></p>";
 			$msg .= "<ul>";
 			$msg .= "<li>Services Found: " . intval($services_count) . "</li>";
-			$msg .= "<li>Index Table Exists: " . (empty($table_status) ? 'NO' : 'YES') . "</li>";
+			$msg .= "<li>Index Table Exists: " . (empty($table_status_after) ? 'NO' : 'YES') . "</li>";
 			$msg .= "<li>Rows Inserted (Current Month): $c1</li>";
 			$msg .= "<li>Rows Inserted (Next Month): $c2</li>";
 			$msg .= "</ul>";
