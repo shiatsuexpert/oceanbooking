@@ -190,9 +190,10 @@ class Ocean_Shiatsu_Booking_Admin {
 		?>
 		<div class="wrap">
 			<h1 class="wp-heading-inline">Cache Inspector</h1>
-			<form method="post" style="display:inline-block; margin-left: 10px;">
+			<form method="post" id="osb-wipe-cache-form" style="display:inline-block; margin-left: 10px;">
 				<?php wp_nonce_field( 'osb_wipe_all_cache_verify' ); ?>
-				<button type="submit" name="osb_wipe_all_cache" class="button button-primary" style="background: #dc3232; border-color: #dc3232;" onclick="return confirm('This will wipe ALL cached availability data and rebuild from Google Calendar. Continue?')">🗑 Wipe All Cache & Rebuild</button>
+				<input type="hidden" name="osb_wipe_all_cache" value="1">
+				<button type="button" class="button button-primary" style="background: #dc3232; border-color: #dc3232;" onclick="if(confirm('This will wipe ALL cached availability data and rebuild from Google Calendar. Continue?')) { document.getElementById('osb-wipe-cache-form').submit(); }">🗑 Wipe All Cache &amp; Rebuild</button>
 			</form>
 			<hr class="wp-header-end">
 			<p>Active Google Calendar caching keys (Raw Events per Day).</p>
