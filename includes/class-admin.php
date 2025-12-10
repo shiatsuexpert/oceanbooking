@@ -168,16 +168,32 @@ class Ocean_Shiatsu_Booking_Admin {
 			// 2. Truncate availability index
 			$wpdb->query( "TRUNCATE TABLE {$wpdb->prefix}osb_availability_index" );
 			
+			// DIAGNOSTIC START
+			$services_count = $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}osb_services" );
+			$table_status = $wpdb->get_results( "SHOW TABLE STATUS LIKE '{$wpdb->prefix}osb_availability_index'" );
+			
 			// 3. Trigger immediate rebuild
 			$sync = new Ocean_Shiatsu_Booking_Sync();
 			$first_of_month = strtotime( date('Y-m-01') );
 			$current_month = date('Y-m', $first_of_month);
 			$next_month = date('Y-m', strtotime('+1 month', $first_of_month));
-			$sync->calculate_monthly_availability( $current_month );
-			$sync->calculate_monthly_availability( $next_month );
 			
-			Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Admin', 'Cache Wiped & Rebuilt via Cache Inspector' );
-			echo '<div class="notice notice-success"><p>✅ All cache wiped and availability rebuilt for current + next month.</p></div>';
+			$c1 = $sync->calculate_monthly_availability( $current_month );
+			$c2 = $sync->calculate_monthly_availability( $next_month );
+			
+			Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Admin', 'Cache Wiped & Rebuilt', ['c1'=>$c1, 'c2'=>$c2] );
+			
+			$msg = "<p>✅ All cache wiped.</p>";
+			$msg .= "<p><strong>Diagnostics:</strong></p>";
+			$msg .= "<ul>";
+			$msg .= "<li>Services Found: " . intval($services_count) . "</li>";
+			$msg .= "<li>Index Table Exists: " . (empty($table_status) ? 'NO' : 'YES') . "</li>";
+			$msg .= "<li>Rows Inserted (Current Month): $c1</li>";
+			$msg .= "<li>Rows Inserted (Next Month): $c2</li>";
+			$msg .= "</ul>";
+			$msg .= "<p>If Rows Inserted is 0, check your 'Working Days' settings or add a Service.</p>";
+
+			echo '<div class="notice notice-success">' . $msg . '</div>';
 		}
 
 		// Fetch all transients related to OSB (This is tricky in WP as transients are in options table with timeout prefix)

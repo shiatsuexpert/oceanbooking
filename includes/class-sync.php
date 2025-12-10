@@ -310,19 +310,12 @@ class Ocean_Shiatsu_Booking_Sync {
 			$current = strtotime( '+1 day', $current );
 		}
 
-		// OPTIMIZATION: Clear Frontend Cache after rebuild
-		// This handles the "Smart Cache Clearing" requirement to remove latency.
-		// Since we just rebuilt the index, the index is fresh. 
-		// We also need to clear 'osb_avail_range_*'? 
-		// Actually, osb_avail_range_ is for "slots" (Step 2 details).
-		// Since we didn't calculate slots (only status), we probably shouldn't blindly clear slot caches unless we know availability changed.
-		// But calculate_monthly_availability is called by sync when changes happen.
-		// So yes, we should clear range caches.
-		// Pattern matching for transients is hard in WP options table.
-		// A better approach is to store a "last_updated" timestamp and have the frontend API check it.
-		// Or just rely on 3 min expiry which is short enough?
-		// User asked for "Smart Cache Clearing".
-		// Let's implement a global invalidation token.
+		// Return count of rows in table for this month (verification)
+		$count = $wpdb->get_var( $wpdb->prepare( 
+			"SELECT COUNT(*) FROM $table_name WHERE date BETWEEN %s AND %s", 
+			$start_date, $end_date 
+		) );
+		return $count;
 	}
 
 	private function upsert_availability( $table_name, $date, $service_id, $status ) {
