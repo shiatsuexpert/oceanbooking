@@ -560,8 +560,9 @@ class Ocean_Shiatsu_Booking_API {
 				$sync->sync_events(); 
 				
 				// Update monthly availability index
-				$current_month = date('Y-m');
-				$next_month = date('Y-m', strtotime('+1 month'));
+				$first_of_month = strtotime( date('Y-m-01') );
+				$current_month = date('Y-m', $first_of_month);
+				$next_month = date('Y-m', strtotime('+1 month', $first_of_month));
 				$sync->calculate_monthly_availability( $current_month );
 				$sync->calculate_monthly_availability( $next_month );
 			} else {

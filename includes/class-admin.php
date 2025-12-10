@@ -701,8 +701,9 @@ class Ocean_Shiatsu_Booking_Admin {
 			
 			// Trigger immediate sync to reflect settings changes
 			$sync = new Ocean_Shiatsu_Booking_Sync();
-			$current_month = date('Y-m');
-			$next_month = date('Y-m', strtotime('+1 month'));
+			$first_of_month = strtotime( date('Y-m-01') );
+			$current_month = date('Y-m', $first_of_month);
+			$next_month = date('Y-m', strtotime('+1 month', $first_of_month));
 			$sync->calculate_monthly_availability( $current_month );
 			$sync->calculate_monthly_availability( $next_month );
 			Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Admin', 'Settings Change Triggered Sync' );
@@ -752,8 +753,9 @@ class Ocean_Shiatsu_Booking_Admin {
 			
 			// Trigger immediate sync to reflect calendar changes
 			$sync = new Ocean_Shiatsu_Booking_Sync();
-			$current_month = date('Y-m');
-			$next_month = date('Y-m', strtotime('+1 month'));
+			$first_of_month = strtotime( date('Y-m-01') );
+			$current_month = date('Y-m', $first_of_month);
+			$next_month = date('Y-m', strtotime('+1 month', $first_of_month));
 			$sync->calculate_monthly_availability( $current_month );
 			$sync->calculate_monthly_availability( $next_month );
 			Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Admin', 'Calendar Change Triggered Sync' );
@@ -811,7 +813,8 @@ class Ocean_Shiatsu_Booking_Admin {
 						<td><strong>Last Sync:</strong></td>
 						<td>
 							<?php if ( $last_sync ) : ?>
-								<code><?php echo esc_html( $last_sync ); ?></code>
+							<?php $last_sync_local = wp_date( 'Y-m-d H:i:s', strtotime( $last_sync ) ); ?>
+							<code><?php echo esc_html( $last_sync_local ); ?></code>
 							<?php else : ?>
 								<em>Never synced</em>
 							<?php endif; ?>

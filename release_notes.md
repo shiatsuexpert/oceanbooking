@@ -2,6 +2,16 @@
 
 # Release Notes
 
+## [1.4.6] - 2025-12-10
+### Fixed
+- **Critical Date Bug:** Fixed month calculation that would skip February when running on Jan 31 (4 locations).
+- **Cron Pre-Warming:** 15-min sync now properly pre-warms cache for next 2 months.
+- **Last Sync Timezone:** Display now uses WordPress local timezone instead of UTC.
+
+### Added
+- **Cache Inspector Day Status:** Shows availability status (Available/Booked/Closed/Holiday) with color coding.
+- **Cache Inspector Label:** Corrected to "Raw Events per Day" for clarity.
+
 ## [1.4.5] - 2025-12-10
 ### Fixed
 - **Timezone Display:** System Status now shows times in WordPress timezone (was showing UTC).

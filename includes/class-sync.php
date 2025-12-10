@@ -95,6 +95,14 @@ class Ocean_Shiatsu_Booking_Sync {
 				'events_processed' => count( $modified_events )
 			] );
 		}
+
+		// 5. Pre-Warm Cache for Next 2 Months (always)
+		// FIX: Anchor to first of month to avoid date overflow (e.g., Jan 31 + 1 month = March)
+		$first_of_this_month = strtotime( date( 'Y-m-01' ) );
+		$current_month = date( 'Y-m', $first_of_this_month );
+		$next_month = date( 'Y-m', strtotime( '+1 month', $first_of_this_month ) );
+		$this->calculate_monthly_availability( $current_month );
+		$this->calculate_monthly_availability( $next_month );
 	}
 
 	private function process_event( $event ) {
