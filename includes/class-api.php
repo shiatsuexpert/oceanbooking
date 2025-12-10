@@ -266,7 +266,11 @@ class Ocean_Shiatsu_Booking_API {
 				'debug' => [
 					'source' => 'single_day_fetch', // Could be cache hit or not inside clustering
 					'timestamp' => current_time('mysql'),
-					'calculation_log' => $clustering->get_last_debug_log()
+					'calculation_log' => $clustering->get_last_debug_log(),
+					'server_config' => [
+						'working_days' => $clustering->get_working_days(), // Expose this!
+						'day_of_week' => date('N', strtotime($date))
+					]
 				]
 			];
 			$response->set_data( $response_data );

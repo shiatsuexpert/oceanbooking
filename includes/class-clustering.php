@@ -457,7 +457,9 @@ class Ocean_Shiatsu_Booking_Clustering {
 
 
 	private function get_working_days() {
-		return json_decode( $this->get_setting( 'working_days' ), true ) ?: ['1','2','3','4','5'];
+		$days = json_decode( $this->get_setting( 'working_days' ), true ) ?: ['1','2','3','4','5'];
+		// Force string types for strict comparison
+		return array_map( 'strval', $days );
 	}
 
 	private function get_working_hours() {

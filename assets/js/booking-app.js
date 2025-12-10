@@ -238,8 +238,15 @@ const osbApp = {
         if (!this.state.serviceId) return;
 
         const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
+        const cacheKey = `${monthStr}_${this.state.serviceId}`;
 
-        // Delayed loading: only show spinner if fetch takes > 300ms
+        // Prevent Loop: If we already fetched this month/service recently, don't fetch again.
+        // This breaks the renderCalendar -> fetch -> updateUI -> renderCalendar loop.
+        if (this.state.lastFetchedKey === cacheKey) {
+            return;
+        }
+
+        // Delayed loading
         let loadingShown = false;
         const loadingTimeout = setTimeout(() => {
             loadingShown = true;
@@ -250,6 +257,7 @@ const osbApp = {
             .then(res => res.json())
             .then(data => {
                 this.state.monthlyAvailability = data;
+                this.state.lastFetchedKey = cacheKey; // Mark as fetched
                 this.updateCalendarUI();
             })
             .catch(err => {

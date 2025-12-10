@@ -157,6 +157,29 @@ class Ocean_Shiatsu_Booking_Admin {
 	public function display_cache_inspector() {
 		global $wpdb;
 
+		// Handle Wipe All Cache
+		if ( isset( $_POST['osb_wipe_all_cache'] ) ) {
+			check_admin_referer( 'osb_wipe_all_cache_verify' );
+			
+			// 1. Delete ALL osb_gcal transients
+			$wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_osb_gcal_%'" );
+			$wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_timeout_osb_gcal_%'" );
+			
+			// 2. Truncate availability index
+			$wpdb->query( "TRUNCATE TABLE {$wpdb->prefix}osb_availability_index" );
+			
+			// 3. Trigger immediate rebuild
+			$sync = new Ocean_Shiatsu_Booking_Sync();
+			$first_of_month = strtotime( date('Y-m-01') );
+			$current_month = date('Y-m', $first_of_month);
+			$next_month = date('Y-m', strtotime('+1 month', $first_of_month));
+			$sync->calculate_monthly_availability( $current_month );
+			$sync->calculate_monthly_availability( $next_month );
+			
+			Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'Admin', 'Cache Wiped & Rebuilt via Cache Inspector' );
+			echo '<div class="notice notice-success"><p>✅ All cache wiped and availability rebuilt for current + next month.</p></div>';
+		}
+
 		// Fetch all transients related to OSB (This is tricky in WP as transients are in options table with timeout prefix)
 		// We'll look for `_transient_osb_gcal_%`
 		
@@ -166,7 +189,12 @@ class Ocean_Shiatsu_Booking_Admin {
 
 		?>
 		<div class="wrap">
-			<h1>Cache Inspector</h1>
+			<h1 class="wp-heading-inline">Cache Inspector</h1>
+			<form method="post" style="display:inline-block; margin-left: 10px;">
+				<?php wp_nonce_field( 'osb_wipe_all_cache_verify' ); ?>
+				<button type="submit" name="osb_wipe_all_cache" class="button button-primary" style="background: #dc3232; border-color: #dc3232;" onclick="return confirm('This will wipe ALL cached availability data and rebuild from Google Calendar. Continue?')">🗑 Wipe All Cache & Rebuild</button>
+			</form>
+			<hr class="wp-header-end">
 			<p>Active Google Calendar caching keys (Raw Events per Day).</p>
 			
 			<table class="wp-list-table widefat fixed striped">
