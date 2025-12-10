@@ -403,11 +403,21 @@ const osbApp = {
             return;
         }
 
-        // Fallback to Live Fetch
-        console.log('Cache miss, fetching live for', date);
-        fetch(`${osbData.apiUrl}availability?date=${date}&service_id=${this.state.serviceId}`)
-            .then(response => response.json())
+        // Fallback to Live Fetch with Timeout
+        console.log(`Cache miss, fetching live for ${date} (Service ${this.state.serviceId})`);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
+        fetch(`${osbData.apiUrl}availability?date=${date}&service_id=${this.state.serviceId}`, {
+            signal: controller.signal
+        })
+            .then(response => {
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                return response.json();
+            })
             .then(data => {
+                clearTimeout(timeoutId);
                 let slots = data;
 
                 // Handle Debug Wrapper
@@ -418,13 +428,23 @@ const osbApp = {
                     slots = data.slots;
                 }
 
+                if (!Array.isArray(slots)) {
+                    throw new Error('Invalid slots format received');
+                }
+
                 // Cache this single date too
                 this.state.availabilityCache[date] = slots;
                 this.renderSlots(slots);
             })
             .catch(err => {
-                console.error(err);
-                container.innerHTML = '<div class="text-danger">Fehler beim Laden der Termine.</div>';
+                clearTimeout(timeoutId);
+                console.error('Fetch Slots Error:', err);
+
+                if (err.name === 'AbortError') {
+                    container.innerHTML = '<div class="text-danger">Zeitüberschreitung. Bitte erneut versuchen.</div>';
+                } else {
+                    container.innerHTML = '<div class="text-danger">Fehler beim Laden der Termine.</div>';
+                }
             });
     },
 

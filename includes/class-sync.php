@@ -197,7 +197,9 @@ class Ocean_Shiatsu_Booking_Sync {
 		$holiday_keywords = array_map( 'trim', explode( ',', $holiday_keywords_raw ) );
 		$all_day_is_holiday = isset( $config['all_day_is_holiday'] ) ? ( $config['all_day_is_holiday'] !== '0' ) : true; // Default true
 		$working_days_json = isset( $config['working_days'] ) ? $config['working_days'] : null;
-		$working_days = $working_days_json ? json_decode( $working_days_json, true ) : ['1','2','3','4','5'];
+		$working_days_raw = $working_days_json ? json_decode( $working_days_json, true ) : ['1','2','3','4','5'];
+		// FIX: Force string types for strict comparison (matching class-clustering.php fix)
+		$working_days = array_map( 'strval', $working_days_raw );
 
 		// OPTIMIZATION: Fetch ALL events for the month in one go (N+1 Fix)
 		$all_month_events = $gcal->get_events_range( $start_date, $end_date );
