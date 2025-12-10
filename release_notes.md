@@ -2,6 +2,14 @@
 
 # Release Notes
 
+## [1.4.5] - 2025-12-10
+### Fixed
+- **Timezone Display:** System Status now shows times in WordPress timezone (was showing UTC).
+- **Cache Inspector Label:** Corrected "Time Slots" → "Raw Events per Day" to avoid confusion.
+
+### Added
+- **Cache Inspector Day Status:** New column showing each day's availability status (Available/Booked/Closed/Holiday) with color coding.
+
 ## [1.4.4] - 2025-12-09
 ### Fixed
 - **Sync Date Corruption:** Fixed `1970-01-01` dates when syncing from Google (array vs string parsing).

@@ -167,7 +167,7 @@ class Ocean_Shiatsu_Booking_Admin {
 		?>
 		<div class="wrap">
 			<h1>Cache Inspector</h1>
-			<p>Active Google Calendar caching keys (Time Slots).</p>
+			<p>Active Google Calendar caching keys (Raw Events per Day).</p>
 			
 			<table class="wp-list-table widefat fixed striped">
 				<thead>
@@ -175,13 +175,14 @@ class Ocean_Shiatsu_Booking_Admin {
 						<th>Key</th>
 						<th>Date</th>
 						<th>Event Count</th>
+						<th>Day Status</th>
 						<th>Expires In</th>
 						<th>Action</th>
 					</tr>
 				</thead>
 				<tbody>
 					<?php if ( empty( $transients ) ) : ?>
-						<tr><td colspan="5">No active cache keys found.</td></tr>
+						<tr><td colspan="6">No active cache keys found.</td></tr>
 					<?php else : ?>
 						<?php foreach ( $transients as $t ) : ?>
 							<?php
@@ -189,6 +190,18 @@ class Ocean_Shiatsu_Booking_Admin {
 							$date = str_replace( 'osb_gcal_', '', $key );
 							$value = get_transient( $key ); // Ensure we get the unserialized value
 							$count = is_array( $value ) ? count( $value ) : 'N/A';
+							
+							// Fetch day status from availability index
+							$day_status = $wpdb->get_var( $wpdb->prepare(
+								"SELECT status FROM {$wpdb->prefix}osb_availability_index WHERE date = %s LIMIT 1",
+								$date
+							) );
+							$status_label = $day_status ? ucfirst( $day_status ) : '—';
+							$status_color = '';
+							if ( $day_status === 'available' ) $status_color = 'color: green;';
+							elseif ( $day_status === 'booked' ) $status_color = 'color: orange;';
+							elseif ( $day_status === 'closed' ) $status_color = 'color: gray;';
+							elseif ( $day_status === 'holiday' ) $status_color = 'color: red;';
 							
 							// Calculate expiry
 							$timeout = get_option( '_transient_timeout_' . $key );
@@ -206,6 +219,7 @@ class Ocean_Shiatsu_Booking_Admin {
 								<td><?php echo esc_html( $key ); ?></td>
 								<td><?php echo esc_html( $date ); ?></td>
 								<td><?php echo $count; ?></td>
+								<td style="<?php echo $status_color; ?> font-weight: bold;"><?php echo esc_html( $status_label ); ?></td>
 								<td><?php echo $files; ?></td>
 								<td>
 									<form method="post" style="display:inline;">
@@ -787,7 +801,7 @@ class Ocean_Shiatsu_Booking_Admin {
 						<td><strong>15-Min Sync Cron:</strong></td>
 						<td>
 							<?php if ( $next_sync ) : ?>
-								✅ Scheduled — Next run: <code><?php echo esc_html( date( 'Y-m-d H:i:s', $next_sync ) ); ?></code>
+								✅ Scheduled — Next run: <code><?php echo esc_html( wp_date( 'Y-m-d H:i:s', $next_sync ) ); ?></code>
 							<?php else : ?>
 								❌ <span style="color: red;">NOT SCHEDULED</span> — Try deactivating and reactivating the plugin.
 							<?php endif; ?>
@@ -807,7 +821,7 @@ class Ocean_Shiatsu_Booking_Admin {
 						<td><strong>Webhook Watch Renewal:</strong></td>
 						<td>
 							<?php if ( $next_watch_renewal ) : ?>
-								✅ Scheduled — Next run: <code><?php echo esc_html( date( 'Y-m-d H:i:s', $next_watch_renewal ) ); ?></code>
+								✅ Scheduled — Next run: <code><?php echo esc_html( wp_date( 'Y-m-d H:i:s', $next_watch_renewal ) ); ?></code>
 							<?php else : ?>
 								⚠️ Not scheduled (webhooks may expire)
 							<?php endif; ?>
