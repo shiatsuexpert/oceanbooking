@@ -604,6 +604,8 @@ const osbApp = {
         // Pre-fetch availability when entering Step 2
         if (this.state.step === 2 && this.state.serviceId) {
             this.prefetchAvailability();
+            // Also re-render calendar to fetch monthly availability (was skipped in init() when no service selected)
+            this.renderCalendar(new Date(this.state.currentYear, this.state.currentMonth, 1));
         }
 
         // Populate Summary Card when entering Step 3
