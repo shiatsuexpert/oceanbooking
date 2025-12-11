@@ -128,7 +128,6 @@ const osbApp = {
         `;
 
         // Empty cells
-        console.log(`Calendar: firstDay=${firstDay}, getDay()=${firstDay.getDay()}, startingDay=${startingDay}`);
         for (let i = 0; i < startingDay; i++) {
             html += `<div class="osb-calendar-day osb-day-empty"></div>`;
         }
@@ -138,10 +137,6 @@ const osbApp = {
             const currentDayDate = new Date(year, month, day);
             const dateStr = this.formatDateLocal(currentDayDate);
 
-            // DEBUG: Log days 14-18 to trace the shift
-            if (day >= 14 && day <= 18) {
-                console.log(`Rendering day ${day}: currentDayDate=${currentDayDate}, dateStr=${dateStr}`);
-            }
 
             let classes = 'osb-calendar-day';
             let onclick = `onclick="osbApp.selectDate('${dateStr}')"`;
@@ -165,11 +160,6 @@ const osbApp = {
             // Check Availability Status (available, booked, holiday, closed)
             // this.state.monthlyAvailability now returns status strings
             const status = this.state.monthlyAvailability ? this.state.monthlyAvailability[dateStr] : null;
-
-            // DEBUG: Log first 7 days to trace the shift issue
-            if (day <= 7) {
-                console.log(`Day ${day}: dateStr=${dateStr}, dayOfWeek=${currentDayDate.getDay()}, status=${status}`);
-            }
 
             if (status === 'holiday') {
                 classes += ' osb-day-holiday';
@@ -206,7 +196,6 @@ const osbApp = {
     },
 
     selectDate: function (dateStr) {
-        console.log('selectDate called with:', dateStr);
         this.state.date = dateStr;
         document.getElementById('osb-date-picker').value = dateStr;
 
@@ -610,9 +599,36 @@ const osbApp = {
 
         // Pre-fetch availability when entering Step 2
         if (this.state.step === 2 && this.state.serviceId) {
+            // Clear old availability data to prevent flash of stale state
+            this.state.monthlyAvailability = null;
+            this.state.lastFetchedKey = null;
+
+            // Show loading spinner in calendar area
+            const container = document.getElementById('osb-calendar-container');
+            if (container) {
+                container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div><p class="mt-2">Verfügbarkeit wird geladen...</p></div>';
+            }
+
+            // Fetch availability, then render calendar when data is ready
+            const year = this.state.currentYear || new Date().getFullYear();
+            const month = this.state.currentMonth !== undefined ? this.state.currentMonth : new Date().getMonth();
+            const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
+
+            fetch(`${osbData.apiUrl}availability/month?service_id=${this.state.serviceId}&month=${monthStr}&_t=${new Date().getTime()}`)
+                .then(res => res.json())
+                .then(data => {
+                    this.state.monthlyAvailability = data;
+                    this.state.lastFetchedKey = `${monthStr}_${this.state.serviceId}`;
+                    // Now render calendar with correct data
+                    this.renderCalendar(new Date(year, month, 1));
+                })
+                .catch(err => {
+                    console.error('Failed to fetch availability:', err);
+                    // Still render calendar even on error
+                    this.renderCalendar(new Date(year, month, 1));
+                });
+
             this.prefetchAvailability();
-            // Also re-render calendar to fetch monthly availability (was skipped in init() when no service selected)
-            this.renderCalendar(new Date(this.state.currentYear, this.state.currentMonth, 1));
         }
 
         // Populate Summary Card when entering Step 3
