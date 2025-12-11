@@ -160,6 +160,11 @@ const osbApp = {
             // this.state.monthlyAvailability now returns status strings
             const status = this.state.monthlyAvailability ? this.state.monthlyAvailability[dateStr] : null;
 
+            // DEBUG: Log first 7 days to trace the shift issue
+            if (day <= 7) {
+                console.log(`Day ${day}: dateStr=${dateStr}, dayOfWeek=${currentDayDate.getDay()}, status=${status}`);
+            }
+
             if (status === 'holiday') {
                 classes += ' osb-day-holiday';
                 onclick = ''; // Not clickable
@@ -236,6 +241,10 @@ const osbApp = {
         fetch(`${osbData.apiUrl}availability/month?service_id=${this.state.serviceId}&month=${monthStr}&_t=${new Date().getTime()}`)
             .then(res => res.json())
             .then(data => {
+                // DEBUG: Log raw API response
+                console.log('Monthly Availability API Response:', data);
+                console.log('Sample keys:', Object.keys(data).slice(0, 7));
+
                 this.state.monthlyAvailability = data;
                 this.state.lastFetchedKey = cacheKey; // Mark as fetched
                 this.updateCalendarUI();
