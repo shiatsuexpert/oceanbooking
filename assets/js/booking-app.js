@@ -128,6 +128,7 @@ const osbApp = {
         `;
 
         // Empty cells
+        console.log(`Calendar: firstDay=${firstDay}, getDay()=${firstDay.getDay()}, startingDay=${startingDay}`);
         for (let i = 0; i < startingDay; i++) {
             html += `<div class="osb-calendar-day osb-day-empty"></div>`;
         }
@@ -136,6 +137,11 @@ const osbApp = {
         for (let day = 1; day <= daysInMonth; day++) {
             const currentDayDate = new Date(year, month, day);
             const dateStr = this.formatDateLocal(currentDayDate);
+
+            // DEBUG: Log days 14-18 to trace the shift
+            if (day >= 14 && day <= 18) {
+                console.log(`Rendering day ${day}: currentDayDate=${currentDayDate}, dateStr=${dateStr}`);
+            }
 
             let classes = 'osb-calendar-day';
             let onclick = `onclick="osbApp.selectDate('${dateStr}')"`;
@@ -200,6 +206,7 @@ const osbApp = {
     },
 
     selectDate: function (dateStr) {
+        console.log('selectDate called with:', dateStr);
         this.state.date = dateStr;
         document.getElementById('osb-date-picker').value = dateStr;
 
