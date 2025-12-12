@@ -62,6 +62,12 @@ class Ocean_Shiatsu_Booking_API {
 			'callback' => array( $this, 'validate_slot' ),
 			'permission_callback' => '__return_true', // Public
 		) );
+
+		register_rest_route( 'osb/v1', '/config', array(
+			'methods'  => 'GET',
+			'callback' => array( $this, 'get_config' ),
+			'permission_callback' => '__return_true', // Public
+		) );
 	}
 
 	public function verify_nonce( $request ) {
@@ -662,5 +668,32 @@ class Ocean_Shiatsu_Booking_API {
 			}
 			return new WP_Error( 'conflict', 'Dieser Termin ist leider bereits vergeben. Bitte wähle einen anderen.', $error_data );
 		}
+	}
+	public function get_config( $request ) {
+		global $wpdb;
+		$table = $wpdb->prefix . 'osb_settings';
+		
+		// Get Write Calendar ID
+		$write_calendar = $wpdb->get_var( "SELECT setting_value FROM $table WHERE setting_key = 'gcal_write_calendar'" );
+		
+		// Get Provider Data
+		$provider_data_json = $wpdb->get_var( "SELECT setting_value FROM $table WHERE setting_key = 'osb_calendar_providers'" );
+		$provider_data = json_decode( $provider_data_json, true ) ?: [];
+		
+		$provider_info = [
+			'name' => '',
+			'image' => ''
+		];
+
+		if ( $write_calendar && isset( $provider_data[ $write_calendar ] ) ) {
+			$provider_info = $provider_data[ $write_calendar ];
+		}
+
+		return rest_ensure_response( [
+			'provider' => $provider_info,
+			'working_start' => $wpdb->get_var( "SELECT setting_value FROM $table WHERE setting_key = 'working_start'" ),
+			'working_end' => $wpdb->get_var( "SELECT setting_value FROM $table WHERE setting_key = 'working_end'" ),
+			'version' => OSB_VERSION
+		] );
 	}
 }

@@ -6,16 +6,30 @@ class Ocean_Shiatsu_Booking_Public {
 		// Enqueue Bootstrap 5 (CDN for Phase 1 simplicity, or local)
 		wp_enqueue_style( 'osb-bootstrap', 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css', array(), '5.3.0' );
 		
-		// Custom Styles
-		wp_enqueue_style( 'osb-style', OSB_PLUGIN_URL . 'assets/css/style.css', array('osb-bootstrap'), OSB_VERSION );
+		// Helper function to get DB option without full WP overhead if possible, or just use get_option
+		// Note: get_option is cached by WP, so it's fast.
+		global $wpdb;
+		$version_setting = $wpdb->get_var( "SELECT setting_value FROM {$wpdb->prefix}osb_settings WHERE setting_key = 'osb_frontend_version'" ) ?: 'v1';
+
+		if ( $version_setting === 'v2' ) {
+			wp_enqueue_style( 'osb-style', OSB_PLUGIN_URL . 'assets/css/style-v2.css', array('osb-bootstrap'), OSB_VERSION );
+		} else {
+			wp_enqueue_style( 'osb-style', OSB_PLUGIN_URL . 'assets/css/style.css', array('osb-bootstrap'), OSB_VERSION );
+		}
 	}
 
 	public function enqueue_scripts() {
 		// Enqueue Bootstrap JS
 		wp_enqueue_script( 'osb-bootstrap', 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js', array('jquery'), '5.3.0', true );
 
-		// Custom App JS
-		wp_enqueue_script( 'osb-app', OSB_PLUGIN_URL . 'assets/js/booking-app.js', array('jquery', 'osb-bootstrap'), OSB_VERSION, true );
+		global $wpdb;
+		$version_setting = $wpdb->get_var( "SELECT setting_value FROM {$wpdb->prefix}osb_settings WHERE setting_key = 'osb_frontend_version'" ) ?: 'v1';
+
+		if ( $version_setting === 'v2' ) {
+			wp_enqueue_script( 'osb-app', OSB_PLUGIN_URL . 'assets/js/booking-app-v2.js', array('jquery', 'osb-bootstrap'), OSB_VERSION, true );
+		} else {
+			wp_enqueue_script( 'osb-app', OSB_PLUGIN_URL . 'assets/js/booking-app.js', array('jquery', 'osb-bootstrap'), OSB_VERSION, true );
+		}
 
 		// Localize script for API URL
 		wp_localize_script( 'osb-app', 'osbData', array(

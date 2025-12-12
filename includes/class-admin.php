@@ -940,6 +940,16 @@ class Ocean_Shiatsu_Booking_Admin {
 				
 				<table class="form-table">
 					<tr valign="top">
+						<th scope="row">Frontend Design</th>
+						<td>
+							<?php $frontend_version = $this->get_setting( 'osb_frontend_version' ) ?: 'v1'; ?>
+							<fieldset>
+								<label><input type="radio" name="osb_frontend_version" value="v1" <?php checked( $frontend_version, 'v1' ); ?>> <strong>Classic (v1)</strong> - Original design</label><br>
+								<label><input type="radio" name="osb_frontend_version" value="v2" <?php checked( $frontend_version, 'v2' ); ?>> <strong>Modern Redesign (v2)</strong> - Mobile-first, branded step wizard</label>
+							</fieldset>
+						</td>
+					</tr>
+					<tr valign="top">
 						<th scope="row">Booking Page</th>
 						<td>
 							<?php
@@ -1188,6 +1198,24 @@ class Ocean_Shiatsu_Booking_Admin {
 
 		if ( isset( $_POST['gcal_client_id'] ) ) $this->update_setting( 'gcal_client_id', sanitize_text_field( $_POST['gcal_client_id'] ) );
 		if ( isset( $_POST['gcal_client_secret'] ) ) $this->update_setting( 'gcal_client_secret', sanitize_text_field( $_POST['gcal_client_secret'] ) );
+		
+		// Frontend Version
+		if ( isset( $_POST['osb_frontend_version'] ) ) {
+			$this->update_setting( 'osb_frontend_version', sanitize_text_field( $_POST['osb_frontend_version'] ) );
+		}
+		
+		// Save Provider Data
+		if ( isset( $_POST['provider_data'] ) && is_array( $_POST['provider_data'] ) ) {
+			// Sanitize array
+			$provider_data = [];
+			foreach ( $_POST['provider_data'] as $cal_id => $data ) {
+				$provider_data[ sanitize_text_field( $cal_id ) ] = [
+					'name'  => sanitize_text_field( $data['name'] ),
+					'image' => sanitize_url( $data['image'] )
+				];
+			}
+			$this->update_setting( 'osb_calendar_providers', json_encode( $provider_data ) );
+		}
 	}
 
 	private function handle_disconnect() {
@@ -1271,17 +1299,36 @@ class Ocean_Shiatsu_Booking_Admin {
 			echo '<div class="notice notice-error inline" style="margin: 10px 0;"><p><strong>⛔ CRITICAL:</strong> No Write Calendar configured. All booking write operations (create, update, delete) are currently <strong>BLOCKED</strong>. You must select a Write Calendar below to enable bookings.</p></div>';
 		}
 
-		echo '<h3>Select Calendars to Sync (Busy Times)</h3>';
-		echo '<p class="description">☑ Check the calendars to read for availability. Only busy times from these calendars will be considered.</p>';
+		echo '<h3 style="margin-top: 20px;">Select Calendars to Sync (Busy Times) & Provider Data</h3>';
+		echo '<p class="description">☑ Check the calendars to read availability from. <br>👤 Enter Provider Name & Image URL for each calendar (used in V2 frontend).</p>';
 		echo '<form method="post" action="">';
 		wp_nonce_field( 'osb_save_calendars_verify', 'osb_save_calendars' );
 		
+		// Fetch saved provider data
+		$provider_data_json = $wpdb->get_var( "SELECT setting_value FROM $table WHERE setting_key = 'osb_calendar_providers'" );
+		$provider_data = json_decode( $provider_data_json, true ) ?: [];
+
 		foreach ( $calendars as $cal ) {
 			$checked = in_array( $cal['id'], $selected ) ? 'checked' : '';
-			echo '<p><label>';
-			echo '<input type="checkbox" name="gcal_calendars[]" value="' . esc_attr( $cal['id'] ) . '" ' . $checked . '> ';
+			$cal_id_safe = esc_attr( $cal['id'] );
+			$p_name = isset( $provider_data[ $cal['id'] ]['name'] ) ? esc_attr( $provider_data[ $cal['id'] ]['name'] ) : '';
+			$p_image = isset( $provider_data[ $cal['id'] ]['image'] ) ? esc_attr( $provider_data[ $cal['id'] ]['image'] ) : '';
+
+			echo '<div style="margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; background: #fff; max-width: 600px;">';
+			echo '<label style="font-weight: bold; font-size: 1.1em;">';
+			echo '<input type="checkbox" name="gcal_calendars[]" value="' . $cal_id_safe . '" ' . $checked . '> ';
 			echo esc_html( $cal['summary'] ) . ( $cal['primary'] ? ' (Primary)' : '' );
-			echo '</label></p>';
+			echo '</label>';
+			
+			// Provider Data Inputs
+			echo '<div style="margin-left: 25px; margin-top: 8px;">';
+			echo '<label>Provider Name: <input type="text" name="provider_data[' . $cal_id_safe . '][name]" value="' . $p_name . '" class="regular-text" placeholder="e.g. Peter Podesva"></label><br>';
+			echo '<label style="margin-top:5px; display:inline-block;">Prov. Image URL: <input type="text" name="provider_data[' . $cal_id_safe . '][image]" value="' . $p_image . '" class="regular-text" placeholder="https://..."></label>';
+			if ( $p_image ) {
+				echo '<img src="' . $p_image . '" style="width: 30px; height: 30px; border-radius: 50%; vertical-align: middle; margin-left: 10px;" title="Preview">';
+			}
+			echo '</div>';
+			echo '</div>';
 		}
 		
 		// Write Calendar Selector

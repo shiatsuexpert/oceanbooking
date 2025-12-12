@@ -1,6 +1,14 @@
 # Release Notes
 
-# Release Notes
+## [1.6.0] - 2025-12-12
+### Added
+- **Frontend Redesign (V2 Beta):** Brand-aligned booking wizard matching `oceanshiatsu.at`.
+    - **Dual Version System:** Toggle between "Classic (V1)" and "Modern Redesign (V2)" in Admin Settings.
+    - **Mobile-First Process:** Vertical stacked card layout for better mobile UX.
+    - **Split View Desktop:** Modern 2-column layout for desktop.
+    - **Provider Identity:** Display of Provider Name & Image (configured in Settings) during the booking flow.
+- **Provider Settings:** Added fields to Calendar Picker to associate specific Google Calendars with a provider persona.
+- **API:** New `/config` endpoint to serve frontend configuration settings dynamically.
 
 ## [1.4.6] - 2025-12-10
 ### Fixed
