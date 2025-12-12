@@ -319,9 +319,23 @@ class Ocean_Shiatsu_Booking_API {
 			return new WP_Error( 'invalid_duration', 'Duration must be positive', array( 'status' => 400 ) );
 		}
 
-		// Validate Date (Allow today, but not past dates? Let's allow today.)
+		// Validate Date
 		if ( strtotime( $params['date'] ) < strtotime( date('Y-m-d') ) ) {
 			return new WP_Error( 'invalid_date', 'Cannot book in the past', array( 'status' => 400 ) );
+		}
+
+		// 1.5 CRITICAL: Live GCal Availability Check (Race Condition Guard)
+		// Check "Source of Truth" (GCal) before we even try to lock local DB.
+		$gcal = new Ocean_Shiatsu_Booking_Google_Calendar();
+		$clustering = new Ocean_Shiatsu_Booking_Clustering();
+		
+		// Force Live Fetch (true for skip_cache)
+		$day_events = $gcal->get_events_for_date( $params['date'], true ); 
+		$available_slots = $clustering->get_available_slots( $params['date'], $params['service_id'], $day_events );
+
+		if ( ! in_array( $params['time'], $available_slots ) ) {
+			Ocean_Shiatsu_Booking_Logger::log( 'WARNING', 'API', 'Race Condition Prevented: Slot taken in GCal', ['time' => $params['time']] );
+			return new WP_Error( 'conflict', 'Dieser Termin ist leider nicht mehr verfügbar (wurde gerade vergeben).', array( 'status' => 409 ) );
 		}
 
 		// 2. Concurrency Check (Locking)
@@ -330,8 +344,7 @@ class Ocean_Shiatsu_Booking_API {
 		$start_time = $params['date'] . ' ' . $params['time'];
 		$end_time = date('Y-m-d H:i:s', strtotime($start_time) + ($duration * 60));
 
-		// Check for Overlaps (Local DB only - GCal is checked by frontend, but we double check local here)
-		// Overlap: (StartA < EndB) and (EndA > StartB)
+		// Check for Local Overlaps
 		$overlap = $wpdb->get_var( $wpdb->prepare(
 			"SELECT id FROM $table_name 
 			 WHERE status NOT IN ('cancelled', 'rejected')
@@ -342,11 +355,11 @@ class Ocean_Shiatsu_Booking_API {
 
 		if ( $overlap ) {
 			$wpdb->query( "UNLOCK TABLES" );
-			Ocean_Shiatsu_Booking_Logger::log( 'ERROR', 'API', 'Double Booking Prevented', ['start' => $start_time, 'end' => $end_time] );
-			return new WP_Error( 'conflict', 'This slot is already booked.', array( 'status' => 409 ) );
+			Ocean_Shiatsu_Booking_Logger::log( 'ERROR', 'API', 'Double Booking Prevented (Local Lock)', ['start' => $start_time] );
+			return new WP_Error( 'conflict', 'Dieser Termin ist bereits vergeben.', array( 'status' => 409 ) );
 		}
 
-		// 3. Insert
+		// 3. Insert Appointment (as Pending initially)
 		$token = bin2hex( random_bytes( 32 ) );
 		$admin_token = bin2hex( random_bytes( 32 ) );
 
@@ -363,7 +376,7 @@ class Ocean_Shiatsu_Booking_API {
 				'client_notes' => isset($params['client_notes']) ? sanitize_textarea_field( $params['client_notes'] ) : '',
 				'start_time' => $start_time,
 				'end_time' => $end_time,
-				'status' => 'pending',
+				'status' => 'pending', // Default
 				'token' => $token,
 				'admin_token' => $admin_token
 			)
@@ -377,18 +390,68 @@ class Ocean_Shiatsu_Booking_API {
 
 		$booking_id = $wpdb->insert_id;
 
-		// 4. Sync to GCal (Pending)
-		$gcal = new Ocean_Shiatsu_Booking_Google_Calendar();
-		$params['service_name'] = $service->name; // Add service name for GCal event title
-		$event_id = $gcal->create_event( $params ); // Pass necessary data
-		$wpdb->update( $table_name, ['gcal_event_id' => $event_id], ['id' => $booking_id] );
-
-		// 5. Send Emails
+		// 4. Auto-Confirm Logic & Sync
+		$auto_confirm = $wpdb->get_var( "SELECT setting_value FROM {$wpdb->prefix}osb_settings WHERE setting_key = 'osb_auto_confirm_bookings'" ) === '1';
+		$params['service_name'] = $service->name;
+		$params['admin_token'] = $admin_token;
+		
+		$confirmation_type = 'request_submitted';
 		$emails = new Ocean_Shiatsu_Booking_Emails();
-		$params['admin_token'] = $admin_token; 
-		$emails->send_admin_request( $booking_id, $params );
 
-		return rest_ensure_response( array( 'success' => true, 'id' => $booking_id ) );
+		if ( $auto_confirm ) {
+			// Try to Create GCal Event IMMEDIATELY
+			$event_id = $gcal->create_event( $params );
+
+			if ( $event_id ) {
+				// SUCCESS: Confirm it
+				$wpdb->update( $table_name, [ 'status' => 'confirmed', 'gcal_event_id' => $event_id ], [ 'id' => $booking_id ] );
+				$confirmation_type = 'booking_confirmed';
+
+				// Emails: Client Confirmation + Admin Notification
+				$emails->send_client_confirmation( $booking_id );
+				// $emails->send_admin_notification_confirmed( $booking_id ); // To be implemented
+				if ( method_exists( $emails, 'send_admin_notification_confirmed' ) ) {
+					$emails->send_admin_notification_confirmed( $booking_id );
+				} else {
+					// Fallback: Use request email but maybe log it? Or just standard request?
+					// Use standard request for now if method missing to avoid crash
+					$emails->send_admin_request( $booking_id, $params );
+				}
+
+			} else {
+				// FAILURE (Option B): Fallback to Pending
+				Ocean_Shiatsu_Booking_Logger::log( 'ERROR', 'API', 'Auto-Confirm GCal Sync Failed. Reverting to pending.', ['id' => $booking_id] );
+				$confirmation_type = 'gcal_sync_failed'; // Specific fallback type
+
+				// Emails: Send Admin Request (Manual intervention needed)
+				$emails->send_admin_request( $booking_id, $params );
+			}
+		} else {
+			// Manual Mode
+			// Standard behavior (Pending)
+			// Should we create tentative GCal event? V1 logic did. Let's keep it? 
+			// Existing code called create_event unconditionally. 
+			// If we want "Manual Confirm", usually we don't put it in GCal yet, OR we put it as tentative.
+			// Let's assume current behavior (create_event) was valid or intended.
+			$event_id = $gcal->create_event( $params );
+			if ( $event_id ) {
+				$wpdb->update( $table_name, ['gcal_event_id' => $event_id], ['id' => $booking_id] );
+			}
+			
+			$emails->send_admin_request( $booking_id, $params );
+		}
+
+		return rest_ensure_response( array( 
+			'success' => true, 
+			'id' => $booking_id,
+			'confirmation_type' => $confirmation_type,
+			'booking_summary' => array(
+				'service_name' => $service->name,
+				'date' => $params['date'],
+				'time' => $params['time'],
+				'client_name' => $params['client_name']
+			)
+		) );
 	}
 
 	public function get_booking_by_token( $request ) {
@@ -470,40 +533,91 @@ class Ocean_Shiatsu_Booking_API {
 	}
 
 	public function handle_action( $request ) {
-		$token = $request->get_param( 'token' ); // This is now the ADMIN token
+		$token = $request->get_param( 'token' );
 		$action = $request->get_param( 'action' );
 		$booking_id = $request->get_param( 'id' );
 
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'osb_appointments';
 
-		// Verify Admin Token
-		$booking = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table_name WHERE id = %d", $booking_id ) );
-		
-		if ( ! $booking ) {
-			return new WP_Error( 'not_found', 'Booking not found', array( 'status' => 404 ) );
-		}
+		$booking = null;
 
-		// Check if token matches admin_token
-		if ( ! hash_equals( $booking->admin_token, $token ) ) {
-			return new WP_Error( 'forbidden', 'Invalid security token', array( 'status' => 403 ) );
+		if ( $booking_id ) {
+			// Admin Access (Requires ID Match + Admin Token)
+			$booking = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table_name WHERE id = %d", $booking_id ) );
+			
+			if ( ! $booking ) {
+				return new WP_Error( 'not_found', 'Booking not found', array( 'status' => 404 ) );
+			}
+			
+			// Verify Admin Token
+			if ( ! hash_equals( $booking->admin_token, $token ) ) {
+				Ocean_Shiatsu_Booking_Logger::log( 'WARNING', 'API', 'Invalid Admin Token Attempt', ['id' => $booking_id] );
+				return new WP_Error( 'forbidden', 'Invalid security token', array( 'status' => 403 ) );
+			}
+		} else {
+			// Client Access (Requires Token Match)
+			// Used for 'cancel' action from email link
+			$booking = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table_name WHERE token = %s", $token ) );
+			
+			if ( ! $booking ) {
+				Ocean_Shiatsu_Booking_Logger::log( 'WARNING', 'API', 'Invalid Client Token Attempt', ['token' => $token] );
+				return new WP_Error( 'not_found', 'Invalid token', array( 'status' => 404 ) );
+			}
+			
+			$booking_id = $booking->id;
 		}
 
 		$gcal = new Ocean_Shiatsu_Booking_Google_Calendar();
+		$emails = new Ocean_Shiatsu_Booking_Emails();
 
-		if ( $action === 'accept' ) {
+		if ( $action === 'cancel' ) {
+			// Client Cancellation
+			if ( $booking->status === 'cancelled' ) {
+				return rest_ensure_response( array( 'success' => true, 'message' => 'Bereits storniert' ) );
+			}
+
+			// 1. Update DB
+			$wpdb->update( $table_name, ['status' => 'cancelled'], ['id' => $booking_id] );
+			
+			// 2. Remove from GCal
+			if ( $booking->gcal_event_id ) {
+				$gcal->delete_event( $booking->gcal_event_id );
+			}
+
+			// 3. Notify Admin
+			$emails->send_admin_cancellation( $booking_id );
+
+			// 4. Return Summary for UI
+			$service_name = $wpdb->get_var( $wpdb->prepare("SELECT name FROM {$wpdb->prefix}osb_services WHERE id = %d", $booking->service_id) );
+			
+			return rest_ensure_response( array(
+				'success' => true,
+				'booking_summary' => array(
+					'service_name' => $service_name,
+					'date' => date('Y-m-d', strtotime($booking->start_time)),
+					'time' => date('H:i', strtotime($booking->start_time)),
+				)
+			));
+
+		} elseif ( $action === 'accept' ) {
+			// Admin Accept
 			$wpdb->update( $table_name, ['status' => 'confirmed'], ['id' => $booking_id] );
 			
-			// Update GCal to remove [PENDING]
+			// Update GCal to remove [PENDING] (if event exists)
 			$event_id = $booking->gcal_event_id;
 			if ( $event_id ) {
 				$gcal->update_event_status( $event_id, 'confirmed' );
+			} else {
+				// If no event (manual mode?), create one now?
+				// Existing code implies update only. Let's stick to update.
 			}
 			
 			// Send Client Confirmation
-			$emails = new Ocean_Shiatsu_Booking_Emails();
 			$emails->send_client_confirmation( $booking_id );
+
 		} elseif ( $action === 'reject' ) {
+			// Admin Reject
 			$wpdb->update( $table_name, ['status' => 'rejected'], ['id' => $booking_id] );
 			
 			// Delete from GCal
@@ -513,7 +627,6 @@ class Ocean_Shiatsu_Booking_API {
 			}
 
 			// Send Client Rejection
-			$emails = new Ocean_Shiatsu_Booking_Emails();
 			$emails->send_client_rejection( $booking_id );
 		}
 

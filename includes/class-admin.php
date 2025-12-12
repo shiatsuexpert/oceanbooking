@@ -966,6 +966,19 @@ class Ocean_Shiatsu_Booking_Admin {
 						</td>
 					</tr>
 					<tr valign="top">
+						<th scope="row">Terminbestätigung</th>
+						<td>
+							<?php $auto_confirm = $this->get_setting( 'osb_auto_confirm_bookings' ); ?>
+							<label>
+								<input type="checkbox" name="osb_auto_confirm_bookings" value="1" <?php checked( $auto_confirm, '1' ); ?>>
+								Termine automatisch bestätigen (ohne Admin-Prüfung)
+							</label>
+							<p class="description">
+								Wenn aktiviert, werden Buchungen sofort bestätigt und im Google Kalender eingetragen.
+							</p>
+						</td>
+					</tr>
+					<tr valign="top">
 						<th scope="row">Working Days</th>
 						<td>
 							<?php
@@ -1203,6 +1216,9 @@ class Ocean_Shiatsu_Booking_Admin {
 		if ( isset( $_POST['osb_frontend_version'] ) ) {
 			$this->update_setting( 'osb_frontend_version', sanitize_text_field( $_POST['osb_frontend_version'] ) );
 		}
+
+		// Auto Confirm
+		$this->update_setting( 'osb_auto_confirm_bookings', isset( $_POST['osb_auto_confirm_bookings'] ) ? '1' : '0' );
 		
 		// Save Provider Data
 		if ( isset( $_POST['provider_data'] ) && is_array( $_POST['provider_data'] ) ) {

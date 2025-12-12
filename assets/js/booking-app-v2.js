@@ -24,7 +24,11 @@ const osbV2 = {
         monthlyAvailability: null,
         lastFetchedKey: null,
 
-        token: null // For external actions
+        token: null, // For external actions
+        confirmationType: null, // 'request_submitted', 'booking_confirmed', 'cancelled', 'reschedule_request'
+        bookingSummary: null, // Data for step 4
+        originalBooking: null, // For reschedule flow
+        clientData: null // For pre-filling form
     },
 
     init: async function () {
@@ -138,6 +142,16 @@ const osbV2 = {
                     <div id="osb-mobile-hook-3"></div>
                 </div>
             </div>
+
+            <!-- Step 4: Confirmation -->
+            <div class="osb-step-card disabled" id="osb-step-card-4">
+                <div class="osb-step-header">
+                    <h3 class="osb-step-title">4. Bestätigung</h3>
+                </div>
+                <div class="osb-step-content" id="osb-step-content-4">
+                    <div id="osb-mobile-hook-4"></div>
+                </div>
+            </div>
         `;
 
         container.appendChild(leftCol);
@@ -188,7 +202,7 @@ const osbV2 = {
         mainDesktop.innerHTML = '';
 
         // Identify Mobile Hook
-        for (let i = 1; i <= 3; i++) {
+        for (let i = 1; i <= 4; i++) {
             const h = document.getElementById(`osb-mobile-hook-${i}`);
             if (h) h.innerHTML = '';
         }
@@ -198,11 +212,14 @@ const osbV2 = {
         viewHtml.className = 'osb-fade-in';
 
         if (this.state.step === 1) {
+            // Note: We regenerate each time because cloneNode doesn't preserve onclick handlers
             viewHtml.appendChild(this.generateServiceListUI());
         } else if (this.state.step === 2) {
             viewHtml.appendChild(this.generateCalendarUI());
         } else if (this.state.step === 3) {
             viewHtml.appendChild(this.generateFormUI());
+        } else if (this.state.step === 4) {
+            viewHtml.appendChild(this.generateConfirmationUI());
         }
 
         this.currentViewEl = viewHtml;
@@ -220,7 +237,7 @@ const osbV2 = {
     },
 
     updateStackState: function () {
-        for (let i = 1; i <= 3; i++) {
+        for (let i = 1; i <= 4; i++) {
             const card = document.getElementById(`osb-step-card-${i}`);
             const summary = document.getElementById(`osb-summary-hook-${i}`);
             const editBtn = document.getElementById(`btn-edit-${i}`);
@@ -294,7 +311,9 @@ const osbV2 = {
             // Determine Title (add Provider if available)
             let title = s.name;
             if (this.state.provider.name && !title.includes('mit')) {
-                title += ` mit ${this.state.provider.name.split(' ')[0]}`; // First name only?
+                // Fix: Check if provider name exists and split carefully
+                const pName = this.state.provider.name.split(' ')[0] || '';
+                title += ` mit ${pName}`;
             }
 
             card.innerHTML = `
@@ -339,9 +358,13 @@ const osbV2 = {
         const div = document.createElement('div');
 
         // Desktop Top Summary
-        // The implementation plan says "Summary Card at TOP before form".
-        // This summary shows Service, Date, Time.
         const dateStr = this.formatDateGerman(this.state.date);
+
+        // Handle Reschedule Mode vs New Booking
+        const isReschedule = this.state.mode === 'reschedule';
+        const client = isReschedule && this.state.clientData ? this.state.clientData : {};
+        const readonlyAttr = isReschedule ? 'readonly' : '';
+        const readonlyStyle = isReschedule ? 'background-color: #f8f9fa;' : '';
 
         div.innerHTML = `
              <div class="osb-summary-card mb-4">
@@ -364,7 +387,7 @@ const osbV2 = {
              <form id="osb-booking-form" onsubmit="osbV2.submitBooking(event)">
                 <div class="mb-3">
                     <label class="form-label small fw-bold">Anrede *</label>
-                    <select class="form-select osb-form-control" id="client_salutation" required>
+                    <select class="form-select osb-form-control" id="client_salutation" required ${readonlyAttr} style="${readonlyStyle}">
                         <option value="">bitte wählen</option>
                         <option value="Herr">Herr</option>
                         <option value="Frau">Frau</option>
@@ -373,30 +396,103 @@ const osbV2 = {
                 </div>
                 <div class="mb-3">
                     <label class="form-label small fw-bold">Vorname *</label>
-                    <input type="text" class="form-control osb-form-control" id="client_first_name" required>
+                    <input type="text" class="form-control osb-form-control" id="client_first_name" required value="${client.first_name || ''}" ${readonlyAttr} style="${readonlyStyle}">
                 </div>
                  <div class="mb-3">
                     <label class="form-label small fw-bold">Name *</label>
-                    <input type="text" class="form-control osb-form-control" id="client_last_name" required>
+                    <input type="text" class="form-control osb-form-control" id="client_last_name" required value="${client.last_name || ''}" ${readonlyAttr} style="${readonlyStyle}">
                 </div>
                 <div class="mb-3">
                     <label class="form-label small fw-bold">E-Mail *</label>
-                    <input type="email" class="form-control osb-form-control" id="client_email" required>
+                    <input type="email" class="form-control osb-form-control" id="client_email" required value="${client.email || ''}" ${readonlyAttr} style="${readonlyStyle}">
                 </div>
                 <div class="mb-3">
                     <label class="form-label small fw-bold">Telefon</label>
-                    <input type="tel" class="form-control osb-form-control" id="client_phone">
+                    <input type="tel" class="form-control osb-form-control" id="client_phone" value="${client.phone || ''}" ${readonlyAttr} style="${readonlyStyle}">
                 </div>
+                <!-- Allow Notes editing? Usually yes, even for reschedule. Requirements didn't specify, but implies Contact Data is read-only. Let's keep notes editable. -->
                 <div class="mb-3">
                     <label class="form-label small fw-bold">Bemerkungen</label>
-                    <textarea class="form-control osb-form-control" style="border-radius:20px !important;" id="client_notes" rows="2"></textarea>
+                    <textarea class="form-control osb-form-control" style="border-radius:20px !important;" id="client_notes" rows="2">${client.notes || ''}</textarea>
                 </div>
                 
                 <div class="osb-actions-footer">
                     <button type="button" class="btn btn-outline-secondary rounded-pill px-4" onclick="osbV2.prevStep()">ZURÜCK</button>
-                    <button type="submit" class="btn btn-primary rounded-pill flex-grow-1 text-white fw-bold">TERMINANFRAGE SENDEN</button>
+                    ${isReschedule ?
+                `<button type="submit" class="btn btn-primary rounded-pill flex-grow-1 text-white fw-bold">ÄNDERUNG BESTÄTIGEN</button>` :
+                `<button type="submit" class="btn btn-primary rounded-pill flex-grow-1 text-white fw-bold">TERMINANFRAGE SENDEN</button>`
+            }
                 </div>
              </form>
+        `;
+
+        // Post-render: Set Select Value manually if needed
+        setTimeout(() => {
+            if (client.salutation) {
+                const el = document.getElementById('client_salutation');
+                if (el) el.value = client.salutation;
+            }
+        }, 0);
+
+        return div;
+    },
+
+    generateConfirmationUI: function () {
+        const div = document.createElement('div');
+        div.className = 'text-center p-4';
+
+        const type = this.state.confirmationType || 'request_submitted';
+        const s = this.state.bookingSummary || {};
+
+        let icon = '<i class="bi bi-envelope-paper" style="font-size:3rem; color:var(--osb-teal);"></i>';
+        let title = 'Terminanfrage gesendet!';
+        let message = `Vielen Dank für deine Shiatsu Terminanfrage!\n\nIch melde mich in Kürze bei dir, um den Termin zu bestätigen.\n\nDu erhältst gleich eine E-Mail mit den Details deiner Anfrage.`;
+
+        switch (type) {
+            case 'booking_confirmed':
+                icon = '<i class="bi bi-check-circle-fill" style="font-size:3rem; color:var(--osb-teal);"></i>';
+                title = 'Termin bestätigt!';
+                message = `Dein Termin wurde erfolgreich gebucht und bestätigt.\n\nEine Bestätigung wurde an deine E-Mail-Adresse gesendet.`;
+                break;
+            case 'reschedule_request': // Or 'reschedule_submitted'
+                icon = '<i class="bi bi-arrow-repeat" style="font-size:3rem; color:var(--osb-teal);"></i>';
+                title = 'Änderung eingereicht';
+                message = `Vielen Dank für deine Terminänderung.\n\nDiese muss noch bestätigt werden. Du erhältst in Kürze eine Email.\n\nBitte überprüfe auch deinen Spam-Ordner.`;
+                break;
+            case 'gcal_sync_failed': // Fallback Option B
+                icon = '<i class="bi bi-exclamation-triangle" style="font-size:3rem; color:#f0ad4e;"></i>';
+                title = 'Fast geschafft';
+                message = `Dein Termin muss noch manuell bestätigt werden. Du erhältst in Kürze eine Email!`;
+                break;
+            case 'cancelled':
+                icon = '<i class="bi bi-x-circle" style="font-size:3rem; color:#dc3545;"></i>';
+                title = 'Termin storniert';
+                message = `Der Termin wurde erfolgreich storniert.`;
+                break;
+        }
+
+        // New Booking Button for cancelled state
+        let buttonHtml = '';
+        if (type === 'cancelled') {
+            buttonHtml = `<button class="btn btn-outline-primary rounded-pill mt-4" onclick="window.location.href = osbData.bookingPageUrl">NEUEN TERMIN BUCHEN</button>`;
+        }
+
+        div.innerHTML = `
+            <div class="mb-4">${icon}</div>
+            <h2 class="osb-confirmation-title mb-3">${title}</h2>
+            
+            <div class="osb-summary-card mb-4 text-start mx-auto" style="max-width:400px;">
+                <div class="osb-summary-item">
+                    <span class="osb-summary-label">Leistung</span>
+                    <span class="osb-summary-value">${s.service_name || this.state.serviceName}</span>
+                </div>
+                <div class="osb-summary-item">
+                    <span class="osb-summary-label">Termin</span>
+                    <span class="osb-summary-value">${this.formatDateGerman(s.date || this.state.date)} um ${s.time || this.state.time} Uhr</span>
+                </div>
+            </div>
+            <p class="osb-confirmation-message">${message}</p>
+            ${buttonHtml}
         `;
         return div;
     },
@@ -431,7 +527,19 @@ const osbV2 = {
     // --- Calendar Logic (Similar to V1 but refactored DOM) ---
 
     initCalendarLogic: function () {
-        this.renderCalendarGrid(new Date());
+        // Bug #12 Fix: Restore selected month if user navigates back
+        let startDate = new Date();
+        if (this.state.date) {
+            startDate = new Date(this.state.date + 'T00:00:00');
+        } else if (this.state.currentYear && this.state.currentMonth !== undefined) {
+            startDate = new Date(this.state.currentYear, this.state.currentMonth, 1);
+        }
+        this.renderCalendarGrid(startDate);
+
+        // Bug #12 Fix: Re-render time slots if date was already selected
+        if (this.state.date) {
+            this.fetchTimeSlots(this.state.date);
+        }
     },
 
     renderCalendarGrid: function (date) {
@@ -518,14 +626,31 @@ const osbV2 = {
 
     fetchMonthlyAvailability: function (year, month) {
         const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
-        // (Similar to V1: Fetch and update state)
-        // For brevity in write_to_file, I'm assuming API works.
+        const wrapper = document.getElementById('osb-calendar-wrapper');
+
+        // Bug #17 Fix: Show loading state during month fetch
+        if (wrapper) {
+            const header = wrapper.querySelector('.osb-calendar-header');
+            if (header) {
+                const loadingIndicator = document.createElement('span');
+                loadingIndicator.className = 'osb-month-loading spinner-border spinner-border-sm text-muted ms-2';
+                header.appendChild(loadingIndicator);
+            }
+        }
+
         fetch(`${osbData.apiUrl}availability/month?service_id=${this.state.serviceId}&month=${monthStr}`)
             .then(res => res.json())
             .then(data => {
                 this.state.monthlyAvailability = data;
                 this.state.lastFetchedKey = `${monthStr}_${this.state.serviceId}`;
                 this.renderCalendarGrid(new Date(year, month, 1)); // Re-render
+            })
+            .catch(err => {
+                // Bug #4 Fix: Error handler
+                console.error('Monthly availability fetch failed:', err);
+                // Remove loading indicator
+                const spinner = document.querySelector('.osb-month-loading');
+                if (spinner) spinner.remove();
             });
     },
 
@@ -537,14 +662,32 @@ const osbV2 = {
 
     fetchTimeSlots: function (dateStr) {
         const container = document.getElementById('osb-time-slots');
-        container.innerHTML = '<div class="grid-span-all text-center"><div class="spinner-border spinner-border-sm text-primary"></div></div>'; // Spinner
+        if (!container) return;
+
+        // Bug #13 Fix: Track current request to handle race conditions
+        this.state.pendingSlotRequest = dateStr;
+
+        container.innerHTML = '<div class="grid-span-all text-center"><div class="spinner-border spinner-border-sm text-primary"></div></div>';
 
         fetch(`${osbData.apiUrl}availability?date=${dateStr}&service_id=${this.state.serviceId}`)
             .then(res => res.json())
             .then(data => {
+                // Bug #13 Fix: Ignore stale responses
+                if (this.state.pendingSlotRequest !== dateStr) {
+                    console.log('Ignoring stale slot response for', dateStr);
+                    return;
+                }
+
                 // If wrapped debug
                 let slots = data.slots || data;
                 this.renderTimeSlots(slots);
+            })
+            .catch(err => {
+                // Bug #4 Fix: Error handler
+                console.error('Time slots fetch failed:', err);
+                if (this.state.pendingSlotRequest === dateStr) {
+                    container.innerHTML = '<div class="grid-span-all text-center text-danger">Fehler beim Laden. Bitte erneut versuchen.</div>';
+                }
             });
     },
 
@@ -576,9 +719,60 @@ const osbV2 = {
             if (b.innerText === time) b.classList.add('selected');
         });
 
-        // Validate & Next
-        // (Simplified Validation for V2 V1 logic)
-        setTimeout(() => this.goToStep(3), 300);
+        // Bug #1 Fix: Call validateAndNext() instead of direct goToStep()
+        setTimeout(() => this.validateAndNext(), 300);
+    },
+
+    // Bug #2 Fix: Add validateAndNext() function (ported from V1)
+    validateAndNext: function () {
+        this.showLoading(true);
+        const data = {
+            date: this.state.date,
+            time: this.state.time,
+            service_id: this.state.serviceId
+        };
+
+        fetch(`${osbData.apiUrl}validate-slot`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+            .then(res => res.json())
+            .then(data => {
+                this.showLoading(false);
+                if (data.valid) {
+                    this.goToStep(3);
+                } else {
+                    // Slot was taken
+                    alert(data.message || 'Dieser Termin ist leider bereits vergeben. Bitte wähle einen anderen.');
+                    // Force refresh slots
+                    this.state.time = null;
+                    this.fetchTimeSlots(this.state.date);
+                }
+            })
+            .catch(err => {
+                // Bug #4 Fix: Error handler
+                this.showLoading(false);
+                console.error('Slot validation failed:', err);
+                alert('Ein Fehler ist aufgetreten. Bitte versuche es erneut.');
+            });
+    },
+
+    showLoading: function (show) {
+        // Simple loading overlay
+        let overlay = document.getElementById('osb-loading-overlay');
+        if (show) {
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'osb-loading-overlay';
+                overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;';
+                overlay.innerHTML = '<div class="spinner-border text-primary"></div>';
+                document.body.appendChild(overlay);
+            }
+            overlay.style.display = 'flex';
+        } else {
+            if (overlay) overlay.style.display = 'none';
+        }
     },
 
     submitBooking: function (e) {
@@ -606,21 +800,41 @@ const osbV2 = {
         btn.disabled = true;
         btn.innerText = 'Senden...';
 
-        fetch(`${osbData.apiUrl}booking`, { // Changed from 'book' - check API endpoint name!
+        fetch(`${osbData.apiUrl}booking`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': osbData.nonce },
             body: JSON.stringify(data)
         })
-            .then(res => res.json())
+            .then(res => {
+                if (res.status === 403) throw new Error('NONCE_FAIL');
+                return res.json();
+            })
             .then(res => {
                 if (res.success) {
-                    alert('Anfrage gesendet! Wir melden uns in Kürze.');
-                    window.location.reload();
+                    this.state.confirmationType = res.confirmation_type;
+                    this.state.bookingSummary = res.booking_summary;
+                    // Move to Step 4
+                    this.goToStep(4);
+                    // Scroll to top
+                    window.scrollTo(0, 0);
                 } else {
-                    alert('Fehler: ' + res.message);
+                    alert('Fehler: ' + (res.message || 'Unbekannter Fehler'));
                     btn.disabled = false;
                     btn.innerText = 'TERMINANFRAGE SENDEN';
                 }
+            })
+            .catch(err => {
+                console.error('Booking submission failed:', err);
+
+                if (err.message === 'NONCE_FAIL') {
+                    alert('Deine Sitzung ist abgelaufen. Bitte lade die Seite neu.');
+                    window.location.reload();
+                    return;
+                }
+
+                alert('Verbindungsfehler. Bitte versuche es erneut.');
+                btn.disabled = false;
+                btn.innerText = 'TERMINANFRAGE SENDEN';
             });
     },
 
@@ -639,7 +853,61 @@ const osbV2 = {
     },
 
     checkUrlActions: function () {
-        // (Copy V1 logic if needed for Cancel/Reschedule links)
+        const params = new URLSearchParams(window.location.search);
+        const action = params.get('action');
+        const token = params.get('token');
+
+        if (!action || !token) return;
+        this.state.token = token;
+
+        if (action === 'cancel') {
+            if (confirm('Möchtest du diesen Termin wirklich stornieren?')) {
+                this.performCancellation(token);
+            }
+        } else if (action === 'reschedule') {
+            this.loadBookingForReschedule(token);
+        }
+    },
+
+    performCancellation: function (token) {
+        fetch(`${osbData.apiUrl}action?action=cancel&token=${token}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    this.state.confirmationType = 'cancelled';
+                    this.state.bookingSummary = data.booking_summary; // API should provide this
+                    this.goToStep(4);
+                } else {
+                    alert('Fehler: ' + (data.message || 'Stornierung fehlgeschlagen'));
+                }
+            });
+    },
+
+    loadBookingForReschedule: function (token) {
+        fetch(`${osbData.apiUrl}booking-by-token?token=${token}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.id) {
+                    // Pre-populate state
+                    this.state.mode = 'reschedule';
+                    this.state.originalBooking = { date: data.date, time: data.time };
+                    this.state.serviceId = data.service_id;
+                    this.state.serviceName = data.service_name;
+                    this.state.serviceDuration = data.duration;
+
+                    // Client Data for Pre-fill
+                    this.state.clientData = {
+                        salutation: data.client_salutation || '',
+                        first_name: data.client_first_name || '',
+                        last_name: data.client_last_name || '',
+                        email: data.client_email,
+                        phone: data.client_phone,
+                        notes: data.client_notes
+                    };
+
+                    this.goToStep(2); // Jump to calendar
+                }
+            });
     }
 };
 

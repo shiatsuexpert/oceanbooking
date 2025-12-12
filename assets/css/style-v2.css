@@ -152,18 +152,75 @@
 .osb-time-slot {
     padding: 10px;
     border: 1px solid #ddd;
-    border-radius: 8px;
-    /* Boxed, not pill */
+    border-radius: 50rem;
+    /* Pill shape */
     text-align: center;
     cursor: pointer;
     font-weight: 500;
     transition: all 0.2s;
 }
 
+/* Bug #8 Fix: Time Slot Hover State */
+.osb-time-slot:hover {
+    background: var(--osb-sand);
+    border-color: var(--osb-teal);
+}
+
 .osb-time-slot.selected {
     background: var(--osb-teal);
     color: #fff;
     border-color: var(--osb-teal);
+}
+
+/* Bug #7 Fix: Summary Card Styles (Step 3) */
+.osb-summary-card {
+    background: linear-gradient(135deg, #fff 0%, #f9f9f9 100%);
+    border: 1px solid #eee;
+    border-radius: 16px;
+    padding: 1.5rem;
+}
+
+.osb-summary-card h5 {
+    font-family: 'Cormorant Garamond', 'Cormorant', serif;
+    font-weight: 600;
+    color: var(--osb-text);
+    margin-bottom: 1rem;
+}
+
+.osb-summary-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.osb-summary-item:last-child {
+    border-bottom: none;
+}
+
+.osb-summary-label {
+    color: #888;
+    font-size: 0.9rem;
+}
+
+.osb-summary-value {
+    font-weight: 600;
+    color: var(--osb-text);
+}
+
+/* Bug #9 Fix: Calendar Header Serif Font */
+.osb-calendar-header {
+    font-family: 'Cormorant Garamond', 'Cormorant', serif;
+    font-size: 1.3rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+/* Bug #11 Fix: Grid Span All Utility */
+.grid-span-all {
+    grid-column: 1 / -1;
 }
 
 /* Provider Summary (Step 3 & Sidebar) */
@@ -174,10 +231,25 @@
     text-align: center;
     padding: 1.5rem;
     background: linear-gradient(135deg, #fff 0%, #f9f9f9 100%);
-    border-radius: 16px;
-    border: 1px solid #eee;
-    margin-bottom: 1.5rem;
+    border: 1px solid #efefef;
+    border-radius: 12px;
 }
+
+/* Confirmation Screen (Step 4) */
+.osb-confirmation-title {
+    font-family: 'Cormorant Garamond', serif;
+    color: var(--osb-teal);
+    font-size: 1.8rem;
+    margin-bottom: 1rem;
+}
+
+.osb-confirmation-message {
+    white-space: pre-line;
+    color: var(--osb-text);
+    line-height: 1.6;
+}
+
+
 
 .osb-provider-img {
     width: 80px;
@@ -212,20 +284,21 @@
 }
 
 /* Desktop Sidebar Modifications */
+/* Bug #14 Fix: Changed #osb-desktop-sidebar to #osb-process-stack */
 @media (min-width: 992px) {
     .osb-time-grid {
         grid-template-columns: 1fr;
         /* 1 Column on Desktop Sidebar/Split */
     }
 
-    #osb-desktop-sidebar .osb-step-card {
+    #osb-process-stack .osb-step-card {
         border-right: none;
         border-left: 4px solid transparent;
         border-radius: 4px;
         background: transparent;
     }
 
-    #osb-desktop-sidebar .osb-step-card.active {
+    #osb-process-stack .osb-step-card.active {
         border-left-color: var(--osb-teal);
         background: #f9f9f9;
         box-shadow: none;

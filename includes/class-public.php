@@ -32,9 +32,13 @@ class Ocean_Shiatsu_Booking_Public {
 		}
 
 		// Localize script for API URL
+		$booking_page_id = $wpdb->get_var( "SELECT setting_value FROM {$wpdb->prefix}osb_settings WHERE setting_key = 'booking_page_id'" );
+		$booking_page_url = $booking_page_id ? get_permalink( $booking_page_id ) : get_home_url();
+
 		wp_localize_script( 'osb-app', 'osbData', array(
 			'apiUrl' => rest_url( 'osb/v1/' ),
 			'nonce' => wp_create_nonce( 'wp_rest' ),
+			'bookingPageUrl' => $booking_page_url
 		) );
 	}
 

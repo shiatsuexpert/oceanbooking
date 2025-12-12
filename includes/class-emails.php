@@ -78,6 +78,28 @@ class Ocean_Shiatsu_Booking_Emails {
 		wp_mail( $to, $subject, $message, $headers );
 	}
 
+	public function send_admin_notification_confirmed( $booking_id ) {
+		global $wpdb;
+		$appt = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}osb_appointments WHERE id = %d", $booking_id ) );
+		
+		$to = get_option( 'admin_email' );
+		$subject = 'New Booking Confirmed: ' . $appt->client_name;
+		$headers = array('Content-Type: text/html; charset=UTF-8');
+
+		$link = admin_url( "admin.php?page=ocean-shiatsu-booking" );
+
+		$message = "<html><body>";
+		$message .= "<h2>New Booking Confirmed (Auto)</h2>";
+		$message .= "<p>A new booking has been automatically confirmed and synced to Google Calendar.</p>";
+		$message .= "<p><strong>Client:</strong> {$appt->client_name}</p>";
+		$message .= "<p><strong>Time:</strong> " . date( 'd.m.Y H:i', strtotime( $appt->start_time ) ) . "</p>";
+		$message .= "<br>";
+		$message .= "<p><a href='$link'>View in Dashboard</a></p>";
+		$message .= "</body></html>";
+
+		wp_mail( $to, $subject, $message, $headers );
+	}
+
 	public function send_admin_reschedule_request( $booking_id, $new_start ) {
 		$to = get_option( 'admin_email' );
 		$subject = 'Reschedule Request: Booking #' . $booking_id;
