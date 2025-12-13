@@ -2,11 +2,19 @@
 
 /* === ROOT & BRAND VARIABLES === */
 :root {
-    /* Inherit functionality from Theme, map to Brand Colors if needed or rely on Theme's Bootstrap */
+    /* Design Tokens (Audit Fix v1.7.0) */
     --osb-teal: #4E7F72;
     --osb-sand: #F4DCC5;
     --osb-text: #415565;
     --osb-cream: #FCF5ED;
+
+    --osb-radius-pill: 50rem;
+    --osb-font-heading: 'Cormorant Garamond', serif;
+    --osb-font-body: 'Quicksand', sans-serif;
+
+    /* Theme Inheritances (Bootstrap) */
+    --bs-primary: var(--osb-teal);
+    --bs-secondary: var(--osb-sand);
 }
 
 /* === LAYOUT UTILITIES === */
@@ -61,6 +69,13 @@
 
 .osb-step-content {
     padding: 0 1.5rem 1.5rem 1.5rem;
+    display: none;
+    /* Hide by default for Accordion effect */
+}
+
+/* Show content only when Active */
+.osb-step-card.active .osb-step-content {
+    display: block;
 }
 
 /* Sticky Bottom Nav (Mobile) or Footer */

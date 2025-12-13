@@ -1,6 +1,5 @@
 # Release Notes
 
-## [1.6.0] - 2025-12-12
 ### Added
 - **Frontend Redesign (V2 Beta):** Brand-aligned booking wizard matching `oceanshiatsu.at`.
     - **Dual Version System:** Toggle between "Classic (V1)" and "Modern Redesign (V2)" in Admin Settings.
@@ -9,6 +8,19 @@
     - **Provider Identity:** Display of Provider Name & Image (configured in Settings) during the booking flow.
 - **Provider Settings:** Added fields to Calendar Picker to associate specific Google Calendars with a provider persona.
 - **API:** New `/config` endpoint to serve frontend configuration settings dynamically.
+
+## [1.7.1] - 2025-12-13
+### Fixed
+- **Mobile Accordion Visibility:** Fixed CSS issue where service cards were hidden inside the mobile accordion wrapper.
+- **Desktop API Error:** Fixed "Fehler beim Laden" in Step 3 by adding Nonce verification to `fetchTimeSlots`.
+- **Performance:** Relocated Google Fonts enqueue to `enqueue_styles` for better rendering performance.
+
+## [1.7.0] - 2025-12-12
+### Added
+- **Step 4 Confirmation UI:** New success screen with context-aware messages (Booking Confirmed vs Request Received).
+- **Auto-Confirmation Logic:** Admin setting to auto-confirm bookings if GCal slot is free.
+- **Reschedule Flow:** "Propose new time" functionality via email link.
+- **Design Tokens:** Implemented centralized CSS variables for Teal/Sand brand colors.
 
 ## [1.4.6] - 2025-12-10
 ### Fixed

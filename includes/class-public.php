@@ -16,13 +16,18 @@ class Ocean_Shiatsu_Booking_Public {
 		} else {
 			wp_enqueue_style( 'osb-style', OSB_PLUGIN_URL . 'assets/css/style.css', array('osb-bootstrap'), OSB_VERSION );
 		}
+
+		// Enqueue Google Fonts (Cormorant & Quicksand)
+		wp_enqueue_style( 'osb-google-fonts', 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Quicksand:wght@400;500;600&display=swap', array(), null );
 	}
 
 	public function enqueue_scripts() {
 		// Enqueue Bootstrap JS
 		wp_enqueue_script( 'osb-bootstrap', 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js', array('jquery'), '5.3.0', true );
 
-		global $wpdb;
+	    // Enqueue Google Fonts (Cormorant & Quicksand) - Moved to enqueue_styles
+
+	global $wpdb;
 		$version_setting = $wpdb->get_var( "SELECT setting_value FROM {$wpdb->prefix}osb_settings WHERE setting_key = 'osb_frontend_version'" ) ?: 'v1';
 
 		if ( $version_setting === 'v2' ) {

@@ -192,7 +192,12 @@ const osbV2 = {
             // Ensure Desktop col is visible (handled by CSS d-lg-block but let's be safe)
         } else {
             // Move to Mobile Stack Hook
-            if (mobileHook) mobileHook.appendChild(this.currentViewEl);
+            // console.log(`Moving content to Mobile Hook: osb-mobile-hook-${step}`);
+            if (mobileHook) {
+                mobileHook.appendChild(this.currentViewEl);
+            } else {
+                console.error(`Mobile Hook not found: osb-mobile-hook-${step}`);
+            }
         }
     },
 
@@ -638,7 +643,7 @@ const osbV2 = {
             }
         }
 
-        fetch(`${osbData.apiUrl}availability/month?service_id=${this.state.serviceId}&month=${monthStr}`)
+        fetch(`${osbData.apiUrl}availability/month?service_id=${this.state.serviceId}&month=${monthStr}&_wpnonce=${osbData.nonce}`)
             .then(res => res.json())
             .then(data => {
                 this.state.monthlyAvailability = data;
@@ -669,7 +674,7 @@ const osbV2 = {
 
         container.innerHTML = '<div class="grid-span-all text-center"><div class="spinner-border spinner-border-sm text-primary"></div></div>';
 
-        fetch(`${osbData.apiUrl}availability?date=${dateStr}&service_id=${this.state.serviceId}`)
+        fetch(`${osbData.apiUrl}availability?date=${dateStr}&service_id=${this.state.serviceId}&_wpnonce=${osbData.nonce}`)
             .then(res => res.json())
             .then(data => {
                 // Bug #13 Fix: Ignore stale responses
@@ -686,7 +691,9 @@ const osbV2 = {
                 // Bug #4 Fix: Error handler
                 console.error('Time slots fetch failed:', err);
                 if (this.state.pendingSlotRequest === dateStr) {
-                    container.innerHTML = '<div class="grid-span-all text-center text-danger">Fehler beim Laden. Bitte erneut versuchen.</div>';
+                    // Show actual error if available or generic
+                    const msg = err.message || "Fehler beim Laden. Bitte erneut versuchen.";
+                    container.innerHTML = `<div class="grid-span-all text-center text-danger small">${msg}</div>`;
                 }
             });
     },
