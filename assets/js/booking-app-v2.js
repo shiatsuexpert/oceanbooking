@@ -675,7 +675,16 @@ const osbV2 = {
         container.innerHTML = '<div class="grid-span-all text-center"><div class="spinner-border spinner-border-sm text-primary"></div></div>';
 
         fetch(`${osbData.apiUrl}availability?date=${dateStr}&service_id=${this.state.serviceId}&_wpnonce=${osbData.nonce}`)
-            .then(res => res.json())
+            .then(async res => {
+                // v1.7.2 Fix: Check response status before parsing JSON
+                if (!res.ok) {
+                    const text = await res.text();
+                    // Truncate error text to avoid flooding UI with HTML
+                    const shortText = text.substring(0, 100) + (text.length > 100 ? '...' : '');
+                    throw new Error(`Server Error (${res.status}): ${shortText}`);
+                }
+                return res.json();
+            })
             .then(data => {
                 // Bug #13 Fix: Ignore stale responses
                 if (this.state.pendingSlotRequest !== dateStr) {

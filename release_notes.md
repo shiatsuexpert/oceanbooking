@@ -9,6 +9,10 @@
 - **Provider Settings:** Added fields to Calendar Picker to associate specific Google Calendars with a provider persona.
 - **API:** New `/config` endpoint to serve frontend configuration settings dynamically.
 
+## [1.7.2] - 2025-12-14
+### Fixed
+- **Desktop API Error (v2):** Added proper `res.ok` check in `fetchTimeSlots` to handle non-2xx responses correctly. Error messages are now truncated to prevent UI breakage from HTML error pages.
+
 ## [1.7.1] - 2025-12-13
 ### Fixed
 - **Mobile Accordion Visibility:** Fixed CSS issue where service cards were hidden inside the mobile accordion wrapper.
