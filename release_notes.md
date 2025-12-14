@@ -9,6 +9,10 @@
 - **Provider Settings:** Added fields to Calendar Picker to associate specific Google Calendars with a provider persona.
 - **API:** New `/config` endpoint to serve frontend configuration settings dynamically.
 
+## [1.7.3] - 2025-12-14
+### Fixed
+- **Critical: service_id=undefined Bug (V2):** The booking wizard failed to load time slots because `service_id` was undefined. Fixed by adding `data-id`, `data-duration`, and `data-price` attributes to the PHP template so V2's `parseServicesFromDOM()` can read them correctly.
+
 ## [1.7.2] - 2025-12-14
 ### Fixed
 - **Desktop API Error (v2):** Added proper `res.ok` check in `fetchTimeSlots` to handle non-2xx responses correctly. Error messages are now truncated to prevent UI breakage from HTML error pages.

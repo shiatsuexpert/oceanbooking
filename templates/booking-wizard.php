@@ -17,7 +17,7 @@ $services = $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}osb_services" );
         <div class="row g-4">
             <?php foreach ( $services as $service ) : ?>
                 <div class="col-md-6">
-                    <div class="card h-100 shadow-sm osb-service-card" onclick="osbApp.selectService(<?php echo $service->id; ?>, <?php echo $service->duration_minutes; ?>, '<?php echo esc_js($service->name); ?>')">
+                    <div class="card h-100 shadow-sm osb-service-card" data-id="<?php echo $service->id; ?>" data-duration="<?php echo $service->duration_minutes; ?>" data-price="<?php echo number_format( $service->price, 2, ',', '.' ); ?> €" onclick="osbApp.selectService(<?php echo $service->id; ?>, <?php echo $service->duration_minutes; ?>, '<?php echo esc_js($service->name); ?>')">
                         <?php if ( ! empty( $service->image_url ) ) : ?>
                             <img src="<?php echo esc_url( $service->image_url ); ?>" class="card-img-top" alt="<?php echo esc_attr( $service->name ); ?>" style="height: 200px; object-fit: cover;">
                         <?php endif; ?>

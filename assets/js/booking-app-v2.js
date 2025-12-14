@@ -74,7 +74,7 @@ const osbV2 = {
                 duration: card.dataset.duration,
                 name: card.querySelector('h5, strong')?.innerText || 'Service',
                 description: card.querySelector('p')?.innerText || '',
-                price: 'Preis variabel' // config?
+                price: card.dataset.price || 'Preis variabel'
             });
         });
     },
