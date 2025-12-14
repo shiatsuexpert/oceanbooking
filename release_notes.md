@@ -9,6 +9,15 @@
 - **Provider Settings:** Added fields to Calendar Picker to associate specific Google Calendars with a provider persona.
 - **API:** New `/config` endpoint to serve frontend configuration settings dynamically.
 
+## [1.7.4] - 2025-12-14
+### Fixed
+- **Auto-Migration System:** Plugin now automatically runs database migrations on version updates, preventing 500 errors from missing columns.
+- **Theme Conflicts (Picostrap):** Removed duplicate Bootstrap CSS/JS loading which caused footer SVG rendering issues and mobile console errors. Plugin now uses theme's Bootstrap 5.
+
+### Changed
+- Version constant synced: `OCEAN_SHIATSU_BOOKING_VERSION` now correctly matches plugin header version.
+- Refactored `class-activator.php`: Extracted `run_migrations()` method for reusability.
+
 ## [1.7.3] - 2025-12-14
 ### Fixed
 - **Critical: service_id=undefined Bug (V2):** The booking wizard failed to load time slots because `service_id` was undefined. Fixed by adding `data-id`, `data-duration`, and `data-price` attributes to the PHP template so V2's `parseServicesFromDOM()` can read them correctly.

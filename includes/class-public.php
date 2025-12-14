@@ -3,8 +3,10 @@
 class Ocean_Shiatsu_Booking_Public {
 
 	public function enqueue_styles() {
-		// Enqueue Bootstrap 5 (CDN for Phase 1 simplicity, or local)
-		wp_enqueue_style( 'osb-bootstrap', 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css', array(), '5.3.0' );
+		// NOTE: Bootstrap CSS is provided by the theme (Picostrap). Loading it twice causes
+		// CSS specificity conflicts that break theme elements like the footer SVG.
+		// Commenting out to prevent conflicts - theme's Bootstrap 5 will be used.
+		// wp_enqueue_style( 'osb-bootstrap', 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css', array(), '5.3.0' );
 		
 		// Helper function to get DB option without full WP overhead if possible, or just use get_option
 		// Note: get_option is cached by WP, so it's fast.
@@ -12,9 +14,11 @@ class Ocean_Shiatsu_Booking_Public {
 		$version_setting = $wpdb->get_var( "SELECT setting_value FROM {$wpdb->prefix}osb_settings WHERE setting_key = 'osb_frontend_version'" ) ?: 'v1';
 
 		if ( $version_setting === 'v2' ) {
-			wp_enqueue_style( 'osb-style', OSB_PLUGIN_URL . 'assets/css/style-v2.css', array('osb-bootstrap'), OSB_VERSION );
+			// Updated: Removed 'osb-bootstrap' dependency since theme provides it
+		wp_enqueue_style( 'osb-style', OSB_PLUGIN_URL . 'assets/css/style-v2.css', array(), OSB_VERSION );
 		} else {
-			wp_enqueue_style( 'osb-style', OSB_PLUGIN_URL . 'assets/css/style.css', array('osb-bootstrap'), OSB_VERSION );
+			// Updated: Removed 'osb-bootstrap' dependency since theme provides it
+		wp_enqueue_style( 'osb-style', OSB_PLUGIN_URL . 'assets/css/style.css', array(), OSB_VERSION );
 		}
 
 		// Enqueue Google Fonts (Cormorant & Quicksand)
@@ -22,8 +26,9 @@ class Ocean_Shiatsu_Booking_Public {
 	}
 
 	public function enqueue_scripts() {
-		// Enqueue Bootstrap JS
-		wp_enqueue_script( 'osb-bootstrap', 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js', array('jquery'), '5.3.0', true );
+		// NOTE: Bootstrap JS is provided by the theme. Loading it twice causes conflicts.
+		// Commenting out to use theme's Bootstrap 5.
+		// wp_enqueue_script( 'osb-bootstrap', 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js', array('jquery'), '5.3.0', true );
 
 	    // Enqueue Google Fonts (Cormorant & Quicksand) - Moved to enqueue_styles
 
@@ -31,9 +36,11 @@ class Ocean_Shiatsu_Booking_Public {
 		$version_setting = $wpdb->get_var( "SELECT setting_value FROM {$wpdb->prefix}osb_settings WHERE setting_key = 'osb_frontend_version'" ) ?: 'v1';
 
 		if ( $version_setting === 'v2' ) {
-			wp_enqueue_script( 'osb-app', OSB_PLUGIN_URL . 'assets/js/booking-app-v2.js', array('jquery', 'osb-bootstrap'), OSB_VERSION, true );
+			// Updated: Removed 'osb-bootstrap' dependency since theme provides it
+		wp_enqueue_script( 'osb-app', OSB_PLUGIN_URL . 'assets/js/booking-app-v2.js', array('jquery'), OSB_VERSION, true );
 		} else {
-			wp_enqueue_script( 'osb-app', OSB_PLUGIN_URL . 'assets/js/booking-app.js', array('jquery', 'osb-bootstrap'), OSB_VERSION, true );
+			// Updated: Removed 'osb-bootstrap' dependency since theme provides it
+		wp_enqueue_script( 'osb-app', OSB_PLUGIN_URL . 'assets/js/booking-app.js', array('jquery'), OSB_VERSION, true );
 		}
 
 		// Localize script for API URL

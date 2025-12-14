@@ -10,6 +10,7 @@ class Ocean_Shiatsu_Booking_Core {
 	 */
 	public function __construct() {
 		$this->load_dependencies();
+		$this->check_version_and_migrate(); // Auto-migrate on version change
 		$this->define_admin_hooks();
 		$this->define_public_hooks();
 	}
@@ -34,6 +35,25 @@ class Ocean_Shiatsu_Booking_Core {
 	private function define_admin_hooks() {
 		$plugin_admin = new Ocean_Shiatsu_Booking_Admin();
 		add_action( 'admin_menu', array( $plugin_admin, 'add_plugin_admin_menu' ) );
+	}
+
+	/**
+	 * Check if plugin version changed and run migrations if needed.
+	 */
+	private function check_version_and_migrate() {
+		$stored_version = get_option( 'osb_db_version', '0.0.0' );
+		$current_version = OCEAN_SHIATSU_BOOKING_VERSION;
+
+		if ( version_compare( $stored_version, $current_version, '<' ) ) {
+			// Version changed - run migrations
+			require_once OSB_PLUGIN_DIR . 'includes/class-activator.php';
+			Ocean_Shiatsu_Booking_Activator::run_migrations();
+			
+			// Update stored version
+			update_option( 'osb_db_version', $current_version );
+			
+			error_log( "OSB: Auto-migration completed from v{$stored_version} to v{$current_version}" );
+		}
 	}
 
 	/**

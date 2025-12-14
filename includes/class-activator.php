@@ -6,9 +6,9 @@
 class Ocean_Shiatsu_Booking_Activator {
 
 	/**
-	 * Create the necessary database tables.
+	 * Run database migrations (can be called on activation or version update).
 	 */
-	public static function activate() {
+	public static function run_migrations() {
 		global $wpdb;
 
 		$charset_collate = $wpdb->get_charset_collate();
@@ -149,5 +149,15 @@ class Ocean_Shiatsu_Booking_Activator {
 		if ( ! wp_next_scheduled( 'osb_cron_sync_events' ) ) {
 			wp_schedule_event( time(), 'every_15_mins', 'osb_cron_sync_events' );
 		}
+	}
+
+	/**
+	 * Activate the plugin (wrapper that calls migrations + sets version).
+	 */
+	public static function activate() {
+		self::run_migrations();
+		
+		// Set DB version on activation
+		update_option( 'osb_db_version', OCEAN_SHIATSU_BOOKING_VERSION );
 	}
 }
