@@ -362,6 +362,7 @@ class Ocean_Shiatsu_Booking_Admin {
 				'duration_minutes' => intval( $_POST['duration'] ),
 				'preparation_minutes' => intval( $_POST['preparation'] ),
 				'price' => floatval( $_POST['price'] ),
+				'price_range' => sanitize_text_field( $_POST['price_range'] ?? '' ),
 				'description' => sanitize_textarea_field( $_POST['description'] ),
 				'image_url' => esc_url_raw( $_POST['image_url'] ),
 			];
@@ -443,6 +444,12 @@ class Ocean_Shiatsu_Booking_Admin {
 						<p>
 							<label>Price (€)</label>
 							<input type="number" step="0.01" name="price" value="<?php echo $edit_service ? $edit_service->price : ''; ?>" class="widefat" required>
+							<small>Base price (for internal use). Enter 0 for free services.</small>
+						</p>
+						<p>
+							<label>Price Display (Optional)</label>
+							<input type="text" name="price_range" value="<?php echo $edit_service ? esc_attr( $edit_service->price_range ?? '' ) : ''; ?>" class="widefat" placeholder="e.g. € 95-140 or Kostenlos">
+							<small>Displayed to customers. Use for price ranges or custom text (e.g. "€ 95-140").</small>
 						</p>
 						<p>
 							<label>Description</label>

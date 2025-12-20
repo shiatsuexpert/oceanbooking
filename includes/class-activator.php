@@ -70,6 +70,7 @@ class Ocean_Shiatsu_Booking_Activator {
 			duration_minutes int(11) NOT NULL,
 			preparation_minutes int(11) DEFAULT 0 NOT NULL,
 			price decimal(10,2) NOT NULL,
+			price_range varchar(50) DEFAULT '',
 			description text DEFAULT '',
 			image_url varchar(255) DEFAULT '',
 			PRIMARY KEY  (id)
