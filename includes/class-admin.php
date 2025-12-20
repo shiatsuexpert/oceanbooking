@@ -363,7 +363,7 @@ class Ocean_Shiatsu_Booking_Admin {
 				'preparation_minutes' => intval( $_POST['preparation'] ),
 				'price' => floatval( $_POST['price'] ),
 				'price_range' => sanitize_text_field( $_POST['price_range'] ?? '' ),
-				'description' => sanitize_textarea_field( $_POST['description'] ),
+				'description' => wp_kses_post( $_POST['description'] ),
 				'image_url' => esc_url_raw( $_POST['image_url'] ),
 			];
 
