@@ -27,6 +27,8 @@ class Ocean_Shiatsu_Booking_Core {
 		require_once OSB_PLUGIN_DIR . 'includes/class-admin.php';
 		require_once OSB_PLUGIN_DIR . 'includes/class-logger.php';
 		require_once OSB_PLUGIN_DIR . 'includes/class-sync.php';
+		require_once OSB_PLUGIN_DIR . 'includes/class-cron.php';
+		require_once OSB_PLUGIN_DIR . 'includes/class-i18n.php';
 	}
 
 	/**
@@ -74,6 +76,14 @@ class Ocean_Shiatsu_Booking_Core {
 			wp_schedule_event( time(), 'daily', 'osb_cron_renew_watches' );
 		}
 		add_action( 'osb_cron_renew_watches', array( 'Ocean_Shiatsu_Booking_Google_Calendar', 'renew_watches_static' ) );
+
+		// PLUGIN 2.0: Initialize cron handlers
+		$cron = new Ocean_Shiatsu_Booking_Cron();
+		$cron->init();
+
+		// PLUGIN 2.0: Initialize i18n (Polylang integration)
+		$i18n = new Ocean_Shiatsu_Booking_i18n();
+		$i18n->init();
 	}
 
 	/**

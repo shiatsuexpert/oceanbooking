@@ -1,9 +1,81 @@
 <?php
-// Fetch services for initial render
+/**
+ * Booking Wizard Template
+ * 
+ * This template supports V1, V2, and V3 frontends.
+ * V3 uses a minimal HTML shell that JavaScript populates dynamically.
+ */
+
 global $wpdb;
 $services = $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}osb_services" );
+$version_setting = $wpdb->get_var( "SELECT setting_value FROM {$wpdb->prefix}osb_settings WHERE setting_key = 'osb_frontend_version'" ) ?: 'v2';
 ?>
 
+<?php if ( $version_setting === 'v3' ) : ?>
+<!-- V3 Frontend (JavaScript-rendered) -->
+<div class="booking-widget">
+    
+    <!-- Loading Overlay -->
+    <div class="loading-overlay hidden">
+        <div class="spinner-border text-success" role="status" style="width: 3rem; height: 3rem;"></div>
+        <p class="mt-3 text-muted">Wird geladen...</p>
+    </div>
+
+    <!-- Progress Steps -->
+    <div class="progress-steps">
+        <div class="step-indicator active" data-action="go-to-step" data-step="1">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2z"/><path d="M12 6c-2 0-4 2-4 4 0 3 4 6 4 6s4-3 4-6c0-2-2-4-4-4z"/></svg>
+        </div>
+        <div class="step-indicator" data-action="go-to-step" data-step="2">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        </div>
+        <div class="step-indicator" data-action="go-to-step" data-step="3">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
+        <div class="step-indicator" data-action="go-to-step" data-step="4">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+    </div>
+
+    <!-- Step Content Area (populated by JavaScript) -->
+    <div class="step-content active step-content-area" tabindex="-1">
+        <!-- Service cards with data attributes for V3 JS to parse -->
+        <?php foreach ( $services as $service ) : ?>
+        <div class="service-card"
+             data-service-id="<?php echo esc_attr( $service->id ); ?>"
+             data-service-name="<?php echo esc_attr( $service->name ); ?>"
+             data-service-duration="<?php echo esc_attr( $service->duration_minutes ); ?>"
+             data-service-price="<?php echo esc_attr( $service->price_range ?? number_format( $service->price, 0 ) . ' €' ); ?>"
+             data-service-image="<?php echo esc_url( $service->image_url ?? '' ); ?>"
+             data-service-description="<?php echo esc_attr( $service->description ?? '' ); ?>"
+             data-action="select-service">
+            <?php if ( ! empty( $service->image_url ) ) : ?>
+                <img src="<?php echo esc_url( $service->image_url ); ?>" alt="<?php echo esc_attr( $service->name ); ?>" class="service-img">
+            <?php endif; ?>
+            <div class="service-info">
+                <h5 class="mb-2"><?php echo esc_html( $service->name ); ?></h5>
+                <?php if ( ! empty( $service->description ) ) : ?>
+                    <p class="service-desc mb-0"><?php echo esc_html( $service->description ); ?></p>
+                <?php endif; ?>
+            </div>
+            <div class="service-meta-block">
+                <div class="service-duration-main"><?php echo esc_html( $service->duration_minutes ); ?> Min</div>
+                <div class="service-cost-sub"><?php echo esc_html( $service->price_range ?? number_format( $service->price, 0 ) . ' €' ); ?></div>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+
+    <!-- Footer with navigation buttons -->
+    <div class="booking-footer">
+        <div></div>
+        <button class="btn btn-nav btn-primary-os" data-action="next-step" disabled>Weiter</button>
+    </div>
+
+</div>
+
+<?php else : ?>
+<!-- V1/V2 Frontend (Legacy) -->
 <div id="osb-booking-wizard" class="container my-5" style="max-width: 800px;">
     
     <!-- Progress Bar -->
@@ -46,15 +118,13 @@ $services = $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}osb_services" );
         <div class="d-flex justify-content-between align-items-center mb-4">
             <button class="btn btn-link text-decoration-none" onclick="osbApp.prevStep()">← Zurück</button>
             <h3 class="m-0">Termin wählen</h3>
-            <div style="width: 80px;"></div> <!-- Spacer -->
+            <div style="width: 80px;"></div>
         </div>
 
         <div class="row">
             <div class="col-md-6">
                 <label class="form-label">Datum</label>
-                <!-- Hidden input to store selected date -->
                 <input type="hidden" id="osb-date-picker">
-                <!-- Custom Calendar Container -->
                 <div id="osb-calendar-container" class="osb-calendar"></div>
             </div>
             <div class="col-md-6">
@@ -75,7 +145,6 @@ $services = $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}osb_services" );
         </div>
 
         <div class="row">
-            <!-- Form Column -->
             <div class="col-md-8">
                 <form id="osb-booking-form" onsubmit="osbApp.submitBooking(event)">
                     <div class="row mb-3">
@@ -119,7 +188,6 @@ $services = $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}osb_services" );
                 </form>
             </div>
 
-            <!-- Summary Card Column -->
             <div class="col-md-4 mt-4 mt-md-0">
                 <div class="osb-summary-card sticky-top" style="top: 20px; z-index: 1;">
                     <h5>Deine Buchung</h5>
@@ -164,3 +232,5 @@ $services = $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}osb_services" );
         </div>
     </div>
 </div>
+<?php endif; ?>
+

@@ -945,7 +945,8 @@ class Ocean_Shiatsu_Booking_Admin {
 							<?php $frontend_version = $this->get_setting( 'osb_frontend_version' ) ?: 'v1'; ?>
 							<fieldset>
 								<label><input type="radio" name="osb_frontend_version" value="v1" <?php checked( $frontend_version, 'v1' ); ?>> <strong>Classic (v1)</strong> - Original design</label><br>
-								<label><input type="radio" name="osb_frontend_version" value="v2" <?php checked( $frontend_version, 'v2' ); ?>> <strong>Modern Redesign (v2)</strong> - Mobile-first, branded step wizard</label>
+								<label><input type="radio" name="osb_frontend_version" value="v2" <?php checked( $frontend_version, 'v2' ); ?>> <strong>Modern Redesign (v2)</strong> - Mobile-first, branded step wizard</label><br>
+							<label><input type="radio" name="osb_frontend_version" value="v3" <?php checked( $frontend_version, 'v3' ); ?>> <strong>Premium V3</strong> - Waitlist, reminders, enhanced UX <span style="color:#28a745;">(2.0)</span></label>
 							</fieldset>
 						</td>
 					</tr>

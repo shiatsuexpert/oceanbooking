@@ -324,65 +324,131 @@ class Ocean_Shiatsu_Booking_API {
 			return new WP_Error( 'invalid_date', 'Cannot book in the past', array( 'status' => 400 ) );
 		}
 
-		// 1.5 CRITICAL: Live GCal Availability Check (Race Condition Guard)
-		// Check "Source of Truth" (GCal) before we even try to lock local DB.
-		$gcal = new Ocean_Shiatsu_Booking_Google_Calendar();
-		$clustering = new Ocean_Shiatsu_Booking_Clustering();
-		
-		// Force Live Fetch (true for skip_cache)
-		$day_events = $gcal->get_events_for_date( $params['date'], true ); 
-		$available_slots = $clustering->get_available_slots( $params['date'], $params['service_id'], $day_events );
+		// PLUGIN 2.0: Determine booking type (default to 'booking' for V2 compatibility)
+		$booking_type = isset( $params['type'] ) ? sanitize_text_field( $params['type'] ) : 'booking';
+		$is_waitlist = ( $booking_type === 'waitlist' );
 
-		if ( ! in_array( $params['time'], $available_slots ) ) {
-			Ocean_Shiatsu_Booking_Logger::log( 'WARNING', 'API', 'Race Condition Prevented: Slot taken in GCal', ['time' => $params['time']] );
-			return new WP_Error( 'conflict', 'Dieser Termin ist leider nicht mehr verfügbar (wurde gerade vergeben).', array( 'status' => 409 ) );
+		// PLUGIN 2.0: Waitlist-specific validation
+		if ( $is_waitlist ) {
+			// Validate wait time range
+			$wait_from = isset( $params['wait_time_from'] ) ? sanitize_text_field( $params['wait_time_from'] ) : null;
+			$wait_to = isset( $params['wait_time_to'] ) ? sanitize_text_field( $params['wait_time_to'] ) : null;
+			
+			if ( ! $wait_from || ! $wait_to ) {
+				return new WP_Error( 'missing_wait_time', 'Waitlist requires time range', array( 'status' => 400 ) );
+			}
+			
+			// Strict time format validation (H:i)
+			$wait_from_dt = DateTime::createFromFormat( 'H:i', $wait_from );
+			$wait_to_dt = DateTime::createFromFormat( 'H:i', $wait_to );
+			if ( ! $wait_from_dt || ! $wait_to_dt ) {
+				return new WP_Error( 'invalid_time_format', 'Time must be in HH:MM format', array( 'status' => 400 ) );
+			}
+			
+			if ( $wait_from_dt >= $wait_to_dt ) {
+				return new WP_Error( 'invalid_wait_time', 'Start time must be before end time', array( 'status' => 400 ) );
+			}
+
+			// Anti-spam: Check for duplicate waitlist entry
+			$existing_waitlist = $wpdb->get_var( $wpdb->prepare(
+				"SELECT id FROM $table_name 
+				 WHERE client_email = %s 
+				 AND DATE(start_time) = %s 
+				 AND status = 'waitlist'",
+				sanitize_email( $params['client_email'] ),
+				$params['date']
+			) );
+
+			if ( $existing_waitlist ) {
+				return new WP_Error( 'duplicate_waitlist', 'Sie sind bereits auf der Warteliste für diesen Tag.', array( 'status' => 409 ) );
+			}
 		}
 
-		// 2. Concurrency Check (Locking)
-		$wpdb->query( "LOCK TABLES $table_name WRITE" );
+		// 1.5 CRITICAL: Live GCal Availability Check (Race Condition Guard)
+		// SKIP for waitlist requests - they are for UNAVAILABLE slots by definition
+		if ( ! $is_waitlist ) {
+			$gcal = new Ocean_Shiatsu_Booking_Google_Calendar();
+			$clustering = new Ocean_Shiatsu_Booking_Clustering();
+			
+			// Force Live Fetch (true for skip_cache)
+			$day_events = $gcal->get_events_for_date( $params['date'], true ); 
+			$available_slots = $clustering->get_available_slots( $params['date'], $params['service_id'], $day_events );
+
+			if ( ! in_array( $params['time'], $available_slots ) ) {
+				Ocean_Shiatsu_Booking_Logger::log( 'WARNING', 'API', 'Race Condition Prevented: Slot taken in GCal', ['time' => $params['time']] );
+				return new WP_Error( 'conflict', 'Dieser Termin ist leider nicht mehr verfügbar (wurde gerade vergeben).', array( 'status' => 409 ) );
+			}
+		}
+
+		// PLUGIN 2.0: Prepare client_id (will be set after successful insert)
+		$client_id = null;
+
+		// 2. Concurrency Check (Locking) - SKIP for waitlist
+		if ( ! $is_waitlist ) {
+			$wpdb->query( "LOCK TABLES $table_name WRITE" );
+		}
 
 		$start_time = $params['date'] . ' ' . $params['time'];
 		$end_time = date('Y-m-d H:i:s', strtotime($start_time) + ($duration * 60));
 
-		// Check for Local Overlaps
-		$overlap = $wpdb->get_var( $wpdb->prepare(
-			"SELECT id FROM $table_name 
-			 WHERE status NOT IN ('cancelled', 'rejected')
-			 AND start_time < %s AND end_time > %s",
-			$end_time,
-			$start_time
-		) );
+		// Check for Local Overlaps - SKIP for waitlist
+		if ( ! $is_waitlist ) {
+			$overlap = $wpdb->get_var( $wpdb->prepare(
+				"SELECT id FROM $table_name 
+				 WHERE status NOT IN ('cancelled', 'rejected', 'waitlist')
+				 AND start_time < %s AND end_time > %s",
+				$end_time,
+				$start_time
+			) );
 
-		if ( $overlap ) {
-			$wpdb->query( "UNLOCK TABLES" );
-			Ocean_Shiatsu_Booking_Logger::log( 'ERROR', 'API', 'Double Booking Prevented (Local Lock)', ['start' => $start_time] );
-			return new WP_Error( 'conflict', 'Dieser Termin ist bereits vergeben.', array( 'status' => 409 ) );
+			if ( $overlap ) {
+				$wpdb->query( "UNLOCK TABLES" );
+				Ocean_Shiatsu_Booking_Logger::log( 'ERROR', 'API', 'Double Booking Prevented (Local Lock)', ['start' => $start_time] );
+				return new WP_Error( 'conflict', 'Dieser Termin ist bereits vergeben.', array( 'status' => 409 ) );
+			}
 		}
 
-		// 3. Insert Appointment (as Pending initially)
+		// 3. Insert Appointment
 		$token = bin2hex( random_bytes( 32 ) );
 		$admin_token = bin2hex( random_bytes( 32 ) );
 
-		$inserted = $wpdb->insert(
-			$table_name,
-			array(
-				'service_id' => $params['service_id'],
-				'client_name' => sanitize_text_field( $params['client_name'] ),
-				'client_salutation' => isset($params['client_salutation']) ? sanitize_text_field( $params['client_salutation'] ) : '',
-				'client_first_name' => isset($params['client_first_name']) ? sanitize_text_field( $params['client_first_name'] ) : '',
-				'client_last_name' => isset($params['client_last_name']) ? sanitize_text_field( $params['client_last_name'] ) : '',
-				'client_email' => sanitize_email( $params['client_email'] ),
-				'client_phone' => sanitize_text_field( $params['client_phone'] ),
-				'client_notes' => isset($params['client_notes']) ? sanitize_textarea_field( $params['client_notes'] ) : '',
-				'start_time' => $start_time,
-				'end_time' => $end_time,
-				'status' => 'pending', // Default
-				'token' => $token,
-				'admin_token' => $admin_token
-			)
+		// Determine status based on type
+		$initial_status = $is_waitlist ? 'waitlist' : 'pending';
+
+		// PLUGIN 2.0: Get language and reminder preference
+		$language = isset( $params['language'] ) ? sanitize_text_field( $params['language'] ) : 'de';
+		$reminder_preference = isset( $params['reminder_preference'] ) ? sanitize_text_field( $params['reminder_preference'] ) : 'none';
+
+		$insert_data = array(
+			'client_id' => $client_id,
+			'service_id' => $params['service_id'],
+			'client_name' => sanitize_text_field( $params['client_name'] ),
+			'client_salutation' => isset($params['client_salutation']) ? sanitize_text_field( $params['client_salutation'] ) : '',
+			'client_first_name' => isset($params['client_first_name']) ? sanitize_text_field( $params['client_first_name'] ) : '',
+			'client_last_name' => isset($params['client_last_name']) ? sanitize_text_field( $params['client_last_name'] ) : '',
+			'client_email' => sanitize_email( $params['client_email'] ),
+			'client_phone' => sanitize_text_field( $params['client_phone'] ),
+			'client_notes' => isset($params['client_notes']) ? sanitize_textarea_field( $params['client_notes'] ) : '',
+			'start_time' => $start_time,
+			'end_time' => $end_time,
+			'status' => $initial_status,
+			'token' => $token,
+			'admin_token' => $admin_token,
+			'language' => $language,
+			'reminder_preference' => $reminder_preference,
 		);
 
-		$wpdb->query( "UNLOCK TABLES" );
+		// Add waitlist-specific fields
+		if ( $is_waitlist ) {
+			$insert_data['wait_time_from'] = $wait_from;
+			$insert_data['wait_time_to'] = $wait_to;
+		}
+
+		$inserted = $wpdb->insert( $table_name, $insert_data );
+
+		if ( ! $is_waitlist ) {
+			$wpdb->query( "UNLOCK TABLES" );
+		}
 
 		if ( ! $inserted ) {
 			return new WP_Error( 'db_error', 'Could not save booking', array( 'status' => 500 ) );
@@ -390,7 +456,55 @@ class Ocean_Shiatsu_Booking_API {
 
 		$booking_id = $wpdb->insert_id;
 
-		// 4. Auto-Confirm Logic & Sync
+		// PLUGIN 2.0: Upsert Client AFTER successful insert (prevents zombie records)
+		// Only increment stats for non-waitlist bookings (waitlist shouldn't count as booking)
+		$should_increment_stats = ! $is_waitlist;
+		$client_id = $this->upsert_client(
+			sanitize_email( $params['client_email'] ),
+			isset( $params['client_salutation'] ) ? sanitize_text_field( $params['client_salutation'] ) : 'n',
+			isset( $params['client_first_name'] ) ? sanitize_text_field( $params['client_first_name'] ) : '',
+			isset( $params['client_last_name'] ) ? sanitize_text_field( $params['client_last_name'] ) : '',
+			sanitize_text_field( $params['client_phone'] ),
+			isset( $params['newsletter'] ) ? 1 : 0,
+			$should_increment_stats
+		);
+
+		// Update appointment with client_id
+		if ( $client_id ) {
+			$wpdb->update( $table_name, array( 'client_id' => $client_id ), array( 'id' => $booking_id ) );
+		}
+
+		// PLUGIN 2.0: Handle Waitlist separately (no GCal, different email)
+		if ( $is_waitlist ) {
+			$emails = new Ocean_Shiatsu_Booking_Emails();
+			
+			// Send waitlist notification to admin
+			if ( method_exists( $emails, 'send_admin_waitlist' ) ) {
+				$emails->send_admin_waitlist( $booking_id, $params );
+			} else {
+				// Fallback: Use standard admin request
+				$params['type'] = 'waitlist';
+				$params['service_name'] = $service->name;
+				$params['admin_token'] = $admin_token;
+				$emails->send_admin_request( $booking_id, $params );
+			}
+
+			return rest_ensure_response( array( 
+				'success' => true, 
+				'id' => $booking_id,
+				'confirmation_type' => 'waitlist_submitted',
+				'booking_summary' => array(
+					'service_name' => $service->name,
+					'date' => $params['date'],
+					'wait_time_from' => $wait_from,
+					'wait_time_to' => $wait_to,
+					'client_name' => $params['client_name']
+				)
+			) );
+		}
+
+		// 4. Auto-Confirm Logic & Sync (normal bookings only)
+		$gcal = new Ocean_Shiatsu_Booking_Google_Calendar();
 		$auto_confirm = $wpdb->get_var( "SELECT setting_value FROM {$wpdb->prefix}osb_settings WHERE setting_key = 'osb_auto_confirm_bookings'" ) === '1';
 		$params['service_name'] = $service->name;
 		$params['admin_token'] = $admin_token;
@@ -409,30 +523,22 @@ class Ocean_Shiatsu_Booking_API {
 
 				// Emails: Client Confirmation + Admin Notification
 				$emails->send_client_confirmation( $booking_id );
-				// $emails->send_admin_notification_confirmed( $booking_id ); // To be implemented
 				if ( method_exists( $emails, 'send_admin_notification_confirmed' ) ) {
 					$emails->send_admin_notification_confirmed( $booking_id );
 				} else {
-					// Fallback: Use request email but maybe log it? Or just standard request?
-					// Use standard request for now if method missing to avoid crash
 					$emails->send_admin_request( $booking_id, $params );
 				}
 
 			} else {
 				// FAILURE (Option B): Fallback to Pending
 				Ocean_Shiatsu_Booking_Logger::log( 'ERROR', 'API', 'Auto-Confirm GCal Sync Failed. Reverting to pending.', ['id' => $booking_id] );
-				$confirmation_type = 'gcal_sync_failed'; // Specific fallback type
+				$confirmation_type = 'gcal_sync_failed';
 
 				// Emails: Send Admin Request (Manual intervention needed)
 				$emails->send_admin_request( $booking_id, $params );
 			}
 		} else {
 			// Manual Mode
-			// Standard behavior (Pending)
-			// Should we create tentative GCal event? V1 logic did. Let's keep it? 
-			// Existing code called create_event unconditionally. 
-			// If we want "Manual Confirm", usually we don't put it in GCal yet, OR we put it as tentative.
-			// Let's assume current behavior (create_event) was valid or intended.
 			$event_id = $gcal->create_event( $params );
 			if ( $event_id ) {
 				$wpdb->update( $table_name, ['gcal_event_id' => $event_id], ['id' => $booking_id] );
@@ -570,6 +676,10 @@ class Ocean_Shiatsu_Booking_API {
 
 		$gcal = new Ocean_Shiatsu_Booking_Google_Calendar();
 		$emails = new Ocean_Shiatsu_Booking_Emails();
+		
+		// SECURITY FIX: Track if this is admin-authenticated request
+		// Only admin_token (with booking_id param) should access accept/reject
+		$is_admin_auth = (bool) $request->get_param( 'id' );
 
 		if ( $action === 'cancel' ) {
 			// Client Cancellation
@@ -601,6 +711,11 @@ class Ocean_Shiatsu_Booking_API {
 			));
 
 		} elseif ( $action === 'accept' ) {
+			// SECURITY FIX: Only admin-authenticated requests can accept
+			if ( ! $is_admin_auth ) {
+				return new WP_Error( 'forbidden', 'Admin-only action', array( 'status' => 403 ) );
+			}
+			
 			// Admin Accept
 			$wpdb->update( $table_name, ['status' => 'confirmed'], ['id' => $booking_id] );
 			
@@ -617,6 +732,11 @@ class Ocean_Shiatsu_Booking_API {
 			$emails->send_client_confirmation( $booking_id );
 
 		} elseif ( $action === 'reject' ) {
+			// SECURITY FIX: Only admin-authenticated requests can reject
+			if ( ! $is_admin_auth ) {
+				return new WP_Error( 'forbidden', 'Admin-only action', array( 'status' => 403 ) );
+			}
+			
 			// Admin Reject
 			$wpdb->update( $table_name, ['status' => 'rejected'], ['id' => $booking_id] );
 			
@@ -799,7 +919,12 @@ class Ocean_Shiatsu_Booking_API {
 		];
 
 		if ( $write_calendar && isset( $provider_data[ $write_calendar ] ) ) {
-			$provider_info = $provider_data[ $write_calendar ];
+			// SECURITY FIX: Whitelist only public-safe fields (prevent credential leak)
+			$p = $provider_data[ $write_calendar ];
+			$provider_info = [
+				'name'  => isset( $p['name'] ) ? $p['name'] : '',
+				'image' => isset( $p['image'] ) ? $p['image'] : '',
+			];
 		}
 
 		return rest_ensure_response( [
@@ -808,5 +933,73 @@ class Ocean_Shiatsu_Booking_API {
 			'working_end' => $wpdb->get_var( "SELECT setting_value FROM $table WHERE setting_key = 'working_end'" ),
 			'version' => OSB_VERSION
 		] );
+	}
+
+	/**
+	 * PLUGIN 2.0: Upsert Client - Get or Create client record.
+	 * Security: Only updates operational fields for existing clients, NOT personal data.
+	 * 
+	 * @param string $email Client email (unique identifier)
+	 * @param string $salutation 'm', 'w', or 'n'
+	 * @param string $first First name
+	 * @param string $last Last name
+	 * @param string $phone Phone number
+	 * @param int $newsletter Newsletter opt-in (0 or 1)
+	 * @param bool $increment_stats Whether to increment booking_count (false for waitlist)
+	 * @return int|null Client ID or null on failure
+	 */
+	private function upsert_client( $email, $salutation, $first, $last, $phone, $newsletter, $increment_stats = true ) {
+		global $wpdb;
+		$table = $wpdb->prefix . 'osb_clients';
+		
+		$existing = $wpdb->get_row( $wpdb->prepare(
+			"SELECT * FROM $table WHERE email = %s", $email
+		) );
+		
+		if ( $existing ) {
+			// UPDATE existing client - ONLY operational fields (security fix from review)
+			// Do NOT overwrite name/phone from unauthenticated form
+			$update_data = array();
+
+			// Only increment stats for actual bookings, not waitlist
+			if ( $increment_stats ) {
+				$update_data['booking_count'] = $existing->booking_count + 1;
+				$update_data['last_booking_date'] = current_time( 'Y-m-d' );
+			}
+
+			// Only update newsletter if it changed from 0 to 1 (opt-in)
+			if ( $newsletter && ! $existing->newsletter_opt_in ) {
+				$update_data['newsletter_opt_in'] = 1;
+				$update_data['newsletter_opt_in_at'] = current_time( 'mysql' );
+				$update_data['newsletter_opt_in_ip'] = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( $_SERVER['REMOTE_ADDR'] ) : '';
+			}
+
+			if ( ! empty( $update_data ) ) {
+				$wpdb->update( $table, $update_data, array( 'id' => $existing->id ) );
+			}
+			
+			return $existing->id;
+		} else {
+			// INSERT new client
+			$insert_data = array(
+				'email' => $email,
+				'salutation' => $salutation,
+				'first_name' => $first,
+				'last_name' => $last,
+				'phone' => $phone,
+				'newsletter_opt_in' => $newsletter,
+				'booking_count' => $increment_stats ? 1 : 0,
+				'last_booking_date' => $increment_stats ? current_time( 'Y-m-d' ) : null,
+			);
+
+			// GDPR: Record opt-in details if consented
+			if ( $newsletter ) {
+				$insert_data['newsletter_opt_in_at'] = current_time( 'mysql' );
+				$insert_data['newsletter_opt_in_ip'] = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( $_SERVER['REMOTE_ADDR'] ) : '';
+			}
+
+			$wpdb->insert( $table, $insert_data );
+			return $wpdb->insert_id;
+		}
 	}
 }
