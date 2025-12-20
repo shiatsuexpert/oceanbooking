@@ -31,8 +31,8 @@ const osbV3 = {
 
         // Waitlist
         isWaitlist: false,
-        waitTimeFrom: '09:00',
-        waitTimeTo: '18:00',
+        waitTimeFrom: '',  // FIX: Empty default forces user choice
+        waitTimeTo: '',    // FIX: Empty default forces user choice
 
         // Reminder
         reminderPreference: 'none', // 'none' | '24h' | '48h'
@@ -70,12 +70,21 @@ const osbV3 = {
     // SVG ICONS
     // ========================================
     icons: {
-        spa: `<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2z"/><path d="M12 6c-2 0-4 2-4 4 0 3 4 6 4 6s4-3 4-6c0-2-2-4-4-4z"/></svg>`,
-        calendar: `<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
-        user: `<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
-        check: `<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>`,
-        chevronLeft: `<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>`,
-        chevronRight: `<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>`,
+        // FontAwesome 6 Icons (Solid/Regular as per prototype)
+        spa: `<svg aria-hidden="true" viewBox="0 0 576 512" fill="currentColor"><path d="M183.1 235.3c33.7 20.7 62.9 48.1 85.8 80.5c7 9.9 13.4 20.3 19.1 31c5.7-10.8 12.1-21.1 19.1-31c22.9-32.4 52.1-59.8 85.8-80.5C437.6 207.8 490.1 192 546 192l9.9 0c11.1 0 20.1 9 20.1 20.1C576 360.1 456.1 480 308.1 480L288 480l-20.1 0C119.9 480 0 360.1 0 212.1C0 201 9 192 20.1 192l9.9 0c55.9 0 108.4 15.8 153.1 43.3zM301.5 37.6c15.7 16.9 61.1 71.8 84.4 164.6c-38 21.6-71.4 50.8-97.9 85.6c-26.5-34.8-59.9-63.9-97.9-85.6c23.2-92.8 68.6-147.7 84.4-164.6C278 33.9 282.9 32 288 32s10 1.9 13.5 5.6z"/></svg>`,
+        calendar: `<svg aria-hidden="true" viewBox="0 0 448 512" fill="currentColor"><path d="M152 24c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 40L64 64C28.7 64 0 92.7 0 128l0 16 0 48L0 448c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-256 0-48 0-16c0-35.3-28.7-64-64-64l-40 0 0-40c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 40L152 64l0-40zM48 192l80 0 0 56-80 0 0-56zm0 104l80 0 0 64-80 0 0-64zm128 0l96 0 0 64-96 0 0-64zm144 0l80 0 0 64-80 0 0-64zm80-48l-80 0 0-56 80 0 0 56zm0 160l0 40c0 8.8-7.2 16-16 16l-64 0 0-56 80 0zm-128 0l0 56-96 0 0-56 96 0zm-144 0l0 56-64 0c-8.8 0-16-7.2-16-16l0-40 80 0zM272 248l-96 0 0-56 96 0 0 56z"/></svg>`,
+        user: `<svg aria-hidden="true" viewBox="0 0 448 512" fill="currentColor"><path d="M304 128a80 80 0 1 0 -160 0 80 80 0 1 0 160 0zM96 128a128 128 0 1 1 256 0A128 128 0 1 1 96 128zM49.3 464l349.5 0c-8.9-63.3-63.3-112-129-112l-91.4 0c-65.7 0-120.1 48.7-129 112zM0 482.3C0 383.8 79.8 304 178.3 304l91.4 0C368.2 304 448 383.8 448 482.3c0 16.4-13.3 29.7-29.7 29.7L29.7 512C13.3 512 0 498.7 0 482.3z"/></svg>`,
+        check: `<svg aria-hidden="true" viewBox="0 0 448 512" fill="currentColor"><path d="M438.6 105.4c12.5 12.5 12.5 32.8 0 45.3l-256 256c-12.5 12.5-32.8 12.5-45.3 0l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0L160 338.7 393.4 105.4c12.5-12.5 32.8-12.5 45.3 0z"/></svg>`,
+        chevronLeft: `<svg aria-hidden="true" viewBox="0 0 320 512" fill="currentColor"><path d="M9.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l192 192c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L77.3 256 246.6 86.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-192 192z"/></svg>`,
+        chevronRight: `<svg aria-hidden="true" viewBox="0 0 320 512" fill="currentColor"><path d="M310.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-192 192c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L242.7 256 73.4 86.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l192 192z"/></svg>`,
+
+        // Added Extra Icons (Available for use)
+        clock: `<svg aria-hidden="true" viewBox="0 0 512 512" fill="currentColor"><path d="M464 256A208 208 0 1 1 48 256a208 208 0 1 1 416 0zM0 256a256 256 0 1 0 512 0A256 256 0 1 0 0 256zM232 120l0 136c0 8 4 15.5 10.7 20l96 64c11 7.4 25.9 4.4 33.3-6.7s4.4-25.9-6.7-33.3L280 243.2 280 120c0-13.3-10.7-24-24-24s-24 10.7-24 24z"/></svg>`,
+        success: `<svg aria-hidden="true" viewBox="0 0 512 512" fill="currentColor"><path d="M256 48a208 208 0 1 1 0 416 208 208 0 1 1 0-416zm0 464A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM369 209c9.4-9.4 9.4-24.6 0-33.9s-24.6-9.4-33.9 0l-111 111-47-47c-9.4-9.4-24.6-9.4-33.9 0s-9.4 24.6 0 33.9l64 64c9.4 9.4 24.6 9.4 33.9 0L369 209z"/></svg>`,
+        waitlist: `<svg aria-hidden="true" viewBox="0 0 384 512" fill="currentColor"><path d="M32 0C14.3 0 0 14.3 0 32S14.3 64 32 64l0 11c0 42.4 16.9 83.1 46.9 113.1L146.7 256 78.9 323.9C48.9 353.9 32 394.6 32 437l0 11c-17.7 0-32 14.3-32 32s14.3 32 32 32l32 0 256 0 32 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l0-11c0-42.4-16.9-83.1-46.9-113.1L237.3 256l67.9-67.9c30-30 46.9-70.7 46.9-113.1l0-11c17.7 0 32-14.3 32-32s-14.3-32-32-32L320 0 64 0 32 0zM96 75l0-11 192 0 0 11c0 19-5.6 37.4-16 53L112 128c-10.3-15.6-16-34-16-53zm16 309c3.5-5.3 7.6-10.3 12.1-14.9L192 301.3l67.9 67.9c4.6 4.6 8.6 9.6 12.1 14.9L112 384z"/></svg>`,
+        info: `<svg aria-hidden="true" viewBox="0 0 512 512" fill="currentColor"><path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM216 336l24 0 0-64-24 0c-13.3 0-24-10.7-24-24s10.7-24 24-24l48 0c13.3 0 24 10.7 24 24l0 88 8 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-80 0c-13.3 0-24-10.7-24-24s10.7-24 24-24zm40-208a32 32 0 1 1 0 64 32 32 0 1 1 0-64z"/></svg>`,
+        error: `<svg aria-hidden="true" viewBox="0 0 512 512" fill="currentColor"><path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zm0-384c13.3 0 24 10.7 24 24l0 112c0 13.3-10.7 24-24 24s-24-10.7-24-24l0-112c0-13.3 10.7-24 24-24zM224 352a32 32 0 1 1 64 0 32 32 0 1 1 -64 0z"/></svg>`,
+        comment: `<svg aria-hidden="true" viewBox="0 0 512 512" fill="currentColor"><path d="M123.6 391.3c12.9-9.4 29.6-11.8 44.6-6.4c26.5 9.6 56.2 15.1 87.8 15.1c124.7 0 208-80.5 208-160s-83.3-160-208-160S48 160.5 48 240c0 32 12.4 62.8 35.7 89.2c8.6 9.7 12.8 22.5 11.8 35.5c-1.4 18.1-5.7 34.7-11.3 49.4c17-7.9 31.1-16.7 39.4-22.7zM21.2 431.9c1.8-2.7 3.5-5.4 5.1-8.1c10-16.6 19.5-38.4 21.4-62.9C17.7 326.8 0 285.1 0 240C0 125.1 114.6 32 256 32s256 93.1 256 208s-114.6 208-256 208c-37.1 0-72.3-6.4-104.1-17.9c-11.9 8.7-31.3 20.6-54.3 30.6c-15.1 6.6-32.3 12.6-50.1 16.1c-.8 .2-1.6 .3-2.4 .5c-4.4 .8-8.7 1.5-13.2 1.9c-.2 0-.5 .1-.7 .1c-5.1 .5-10.2 .8-15.3 .8c-6.5 0-12.3-3.9-14.8-9.9c-2.5-6-1.1-12.8 3.4-17.4c4.1-4.2 7.8-8.7 11.3-13.5c1.7-2.3 3.3-4.6 4.8-6.9l.3-.5z"/></svg>`,
     },
 
     // ========================================
@@ -109,6 +118,9 @@ const osbV3 = {
 
         // Parse services from DOM or load via API
         this.loadServices();
+
+        // FIX: Load saved user data from localStorage for returning users
+        this.loadSavedUserData();
 
         // Initial render
         this.renderStep(1);
@@ -309,6 +321,43 @@ const osbV3 = {
     },
 
     // ========================================
+    // LOCAL STORAGE (FIX: Returning user persistence)
+    // ========================================
+    loadSavedUserData() {
+        try {
+            const saved = localStorage.getItem('osb_user_data');
+            if (saved) {
+                const data = JSON.parse(saved);
+                // Only load basic contact info, not booking specifics
+                if (data.firstName) this.state.formData.firstName = data.firstName;
+                if (data.lastName) this.state.formData.lastName = data.lastName;
+                if (data.email) this.state.formData.email = data.email;
+                if (data.phone) this.state.formData.phone = data.phone;
+                if (data.salutation) this.state.formData.salutation = data.salutation;
+                console.log('OSB V3: Loaded saved user data');
+            }
+        } catch (e) {
+            console.warn('OSB V3: Failed to load saved user data', e);
+        }
+    },
+
+    saveUserData() {
+        try {
+            const data = {
+                firstName: this.state.formData.firstName,
+                lastName: this.state.formData.lastName,
+                email: this.state.formData.email,
+                phone: this.state.formData.phone,
+                salutation: this.state.formData.salutation,
+            };
+            localStorage.setItem('osb_user_data', JSON.stringify(data));
+            console.log('OSB V3: Saved user data to localStorage');
+        } catch (e) {
+            console.warn('OSB V3: Failed to save user data', e);
+        }
+    },
+
+    // ========================================
     // SERVICES
     // ========================================
     services: [],
@@ -382,6 +431,9 @@ const osbV3 = {
             this.container.querySelectorAll('.service-card').forEach(card => {
                 card.classList.toggle('selected', parseInt(card.dataset.serviceId) === serviceId);
             });
+
+            // FIX: Re-render footer to enable/disable Next button based on selection
+            this.renderFooter();
         }
     },
 
@@ -720,6 +772,11 @@ const osbV3 = {
             this.state.isWaitlist = true;
             this.state.mode = 'waitlist';
             this.renderWaitlistForm();
+            // FIX: Scroll to waitlist form for mobile visibility
+            setTimeout(() => {
+                const slotsContainer = this.container.querySelector('#timeSlotsContainer');
+                if (slotsContainer) slotsContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }, 100);
         } else {
             this.state.isWaitlist = false;
             this.state.mode = 'booking';
@@ -730,6 +787,9 @@ const osbV3 = {
         this.container.querySelectorAll('.calendar-day').forEach(day => {
             day.classList.toggle('selected', day.dataset.date === dateStr);
         });
+
+        // FIX: Re-render footer to update Next button state
+        this.renderFooter();
     },
 
     async fetchTimeSlots(dateStr) {
@@ -801,6 +861,11 @@ const osbV3 = {
         });
 
         slotsContainer.appendChild(grid);
+
+        // FIX: Scroll to time slots for mobile visibility
+        setTimeout(() => {
+            slotsContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 100);
     },
 
     selectTime(time) {
@@ -810,6 +875,9 @@ const osbV3 = {
         this.container.querySelectorAll('.time-slot').forEach(slot => {
             slot.classList.toggle('selected', slot.dataset.time === time);
         });
+
+        // FIX: Re-render footer to enable Next button
+        this.renderFooter();
     },
 
     renderWaitlistForm() {
@@ -874,8 +942,8 @@ const osbV3 = {
         this.state.selectedDate = null;
         this.state.selectedTime = null;
         this.state.isWaitlist = false;
-        this.state.waitTimeFrom = '09:00';
-        this.state.waitTimeTo = '18:00';
+        this.state.waitTimeFrom = '';
+        this.state.waitTimeTo = '';
         this.state.reminderPreference = 'none';
         this.state.formData = {
             salutation: 'n',
@@ -897,6 +965,11 @@ const osbV3 = {
     },
 
     generateTimeOptions(select, selectedValue) {
+        // FIX: Add placeholder option to force user choice
+        const placeholder = this.el('option', { value: '', disabled: 'disabled' }, '--:--');
+        if (!selectedValue) placeholder.selected = true;
+        select.appendChild(placeholder);
+
         for (let h = 8; h <= 20; h++) {
             for (let m = 0; m < 60; m += 30) {
                 const time = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
@@ -1223,6 +1296,10 @@ const osbV3 = {
 
             // Success
             state.bookingSummary = data;
+
+            // FIX: Save user data to localStorage for returning users
+            this.saveUserData();
+
             this.goToStep(4);
 
         } catch (err) {

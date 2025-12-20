@@ -355,7 +355,7 @@ class Ocean_Shiatsu_Booking_Admin {
 
 		// Handle Save (Add/Edit)
 		if ( isset( $_POST['osb_save_service'] ) ) {
-			check_admin_referer( 'osb_service_verify' );
+			check_admin_referer( 'osb_service_verify', 'osb_save_service' );
 			
 			$data = [
 				'name' => sanitize_text_field( $_POST['name'] ),
