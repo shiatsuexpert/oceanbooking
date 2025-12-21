@@ -132,8 +132,11 @@
 }
 
 /* FIX: Remove browser focus outline (accessibility via tabindex) */
-.booking-widget .step-content-area:focus {
-    outline: none;
+.booking-widget .step-content-area,
+.booking-widget .step-content-area:focus,
+.booking-widget .step-content-area:active {
+    outline: none !important;
+    box-shadow: none !important;
 }
 
 @keyframes osbFadeIn {

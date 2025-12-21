@@ -415,8 +415,13 @@ const osbV3 = {
     },
 
     selectService(serviceId) {
+        console.log('OSB Debug: selectService called', { serviceId, type: typeof serviceId });
+
         // FIX: Use loose equality to handle string/number ID mismatch
         const service = this.services.find(s => s.id == serviceId);
+
+        console.log('OSB Debug: Service lookup', { found: !!service, services: this.services });
+
         if (service) {
             // FIX: Reset calendar/time state when service changes
             this.state.selectedDate = null;
@@ -1218,6 +1223,9 @@ const osbV3 = {
                 className: 'btn btn-nav btn-primary-os',
                 'data-action': 'next-step',
             }, this.getLabel('btn_next'));
+
+            console.log('OSB Debug: renderFooter Step 1', { selectedService: this.state.selectedService });
+
             if (!this.state.selectedService) nextBtn.disabled = true;
             footer.appendChild(nextBtn);
         } else if (step === 2) {
