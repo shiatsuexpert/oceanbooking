@@ -415,12 +415,8 @@ const osbV3 = {
     },
 
     selectService(serviceId) {
-        console.log('OSB Debug: selectService called', { serviceId, type: typeof serviceId });
-
         // FIX: Use loose equality to handle string/number ID mismatch
         const service = this.services.find(s => s.id == serviceId);
-
-        console.log('OSB Debug: Service lookup', { found: !!service, services: this.services });
 
         if (service) {
             // FIX: Reset calendar/time state when service changes
@@ -725,8 +721,10 @@ const osbV3 = {
 
         try {
             const serviceId = this.state.selectedService?.id;
+            // FIX: Use correct endpoint and YYYY-MM format
+            const monthStr = `${year}-${String(month).padStart(2, '0')}`;
             const response = await fetch(
-                `${this.state.config.apiUrl}availability?year=${year}&month=${month}&service_id=${serviceId}`,
+                `${this.state.config.apiUrl}availability/month?month=${monthStr}&service_id=${serviceId}`,
                 { headers: { 'X-WP-Nonce': this.state.config.nonce } }
             );
 
@@ -1223,8 +1221,6 @@ const osbV3 = {
                 className: 'btn btn-nav btn-primary-os',
                 'data-action': 'next-step',
             }, this.getLabel('btn_next'));
-
-            console.log('OSB Debug: renderFooter Step 1', { selectedService: this.state.selectedService });
 
             if (!this.state.selectedService) nextBtn.disabled = true;
             footer.appendChild(nextBtn);
