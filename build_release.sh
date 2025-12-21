@@ -27,17 +27,10 @@ fi
 echo "[2/4] Removing unused Google API Services..."
 SERVICES_DIR="vendor/google/apiclient-services/src"
 if [ -d "$SERVICES_DIR" ]; then
-    BEFORE=$(du -sh "$SERVICES_DIR" | cut -f1)
-    # Keep only Calendar
-    rm -rf "${SERVICES_DIR}/"*
-    # Re-install just to be safe/clean or (better) just exclude in previous step if possible. 
-    # But for now, we rely on the manual cleanup logic which was robust enough.
-    # Actually, simpler: just delete everything not Calendar.
-fi
-# Re-running the proven cleanup command to be safe (idempotent)
-if [ -d "vendor/google/apiclient-services/src" ]; then
-    find vendor/google/apiclient-services/src -maxdepth 1 -type f -name "*.php" ! -name "Calendar.php" -delete
-    find vendor/google/apiclient-services/src -maxdepth 1 -type d ! -name "." ! -name "Calendar" -exec rm -rf {} +
+    # Delete all PHP files EXCEPT Calendar.php
+    find "$SERVICES_DIR" -maxdepth 1 -type f -name "*.php" ! -name "Calendar.php" -delete 2>/dev/null || true
+    # Delete all subdirectories EXCEPT Calendar (which contains resource classes)
+    find "$SERVICES_DIR" -maxdepth 1 -mindepth 1 -type d ! -name "Calendar" -exec rm -rf {} + 2>/dev/null || true
 fi
 
 # 4. Prepare Staging Directory
