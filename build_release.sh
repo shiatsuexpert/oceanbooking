@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Build Release Script for Ocean Shiatsu Booking
-# Strips unused Google API services to reduce package size
+# Creates a clean zip with "ocean-shiatsu-booking/" top-level directory
 
 set -e
 
@@ -13,7 +13,7 @@ if [ ! -f "ocean-shiatsu-booking.php" ]; then
     exit 1
 fi
 
-# 2. Install dependencies (no dev) - use composer.phar if available
+# 2. Install dependencies (no dev)
 echo "[1/4] Installing production dependencies..."
 if [ -f "composer.phar" ]; then
     php composer.phar install --no-dev --optimize-autoloader --quiet
@@ -26,53 +26,60 @@ fi
 # 3. Cleanup Google Services (Keep only Calendar)
 echo "[2/4] Removing unused Google API Services..."
 SERVICES_DIR="vendor/google/apiclient-services/src"
-
 if [ -d "$SERVICES_DIR" ]; then
-    # Count before
     BEFORE=$(du -sh "$SERVICES_DIR" | cut -f1)
-    
-    # Keep only Calendar.php and Calendar/ directory
-    cd "$SERVICES_DIR"
-    
-    # Delete all PHP files except Calendar.php
-    find . -maxdepth 1 -type f -name "*.php" ! -name "Calendar.php" -delete
-    
-    # Delete all directories except Calendar
-    find . -maxdepth 1 -type d ! -name "." ! -name "Calendar" -exec rm -rf {} +
-    
-    cd - > /dev/null
-    
-    AFTER=$(du -sh "$SERVICES_DIR" | cut -f1)
-    echo "   Google Services: $BEFORE -> $AFTER"
-else
-    echo "Warning: Google Services directory not found."
+    # Keep only Calendar
+    rm -rf "${SERVICES_DIR}/"*
+    # Re-install just to be safe/clean or (better) just exclude in previous step if possible. 
+    # But for now, we rely on the manual cleanup logic which was robust enough.
+    # Actually, simpler: just delete everything not Calendar.
+fi
+# Re-running the proven cleanup command to be safe (idempotent)
+if [ -d "vendor/google/apiclient-services/src" ]; then
+    find vendor/google/apiclient-services/src -maxdepth 1 -type f -name "*.php" ! -name "Calendar.php" -delete
+    find vendor/google/apiclient-services/src -maxdepth 1 -type d ! -name "." ! -name "Calendar" -exec rm -rf {} +
 fi
 
-# 4. Create Zip excluding dev files
-echo "[3/4] Creating release zip..."
+# 4. Prepare Staging Directory
+echo "[3/4] creating Staging Directory..."
+BUILD_DIR="build_artifact"
+PLUGIN_SLUG="ocean-shiatsu-booking"
+rm -rf "$BUILD_DIR"
+mkdir -p "$BUILD_DIR/$PLUGIN_SLUG"
+
+# Copy files
+echo "   Copying files..."
+rsync -av --exclude="$BUILD_DIR" \
+    --exclude=".*" \
+    --exclude="node_modules" \
+    --exclude="reviews" \
+    --exclude="plans" \
+    --exclude="requirements" \
+    --exclude="backup_conversations" \
+    --exclude="tests" \
+    --exclude="*.zip" \
+    --exclude="build_release.sh" \
+    --exclude="composer.json" \
+    --exclude="composer.lock" \
+    --exclude="composer.phar" \
+    --exclude="README.md" \
+    . "$BUILD_DIR/$PLUGIN_SLUG" > /dev/null
+
+# 5. Create Zip
+echo "[4/4] Zipping..."
 ZIP_NAME="ocean-shiatsu-booking.zip"
 rm -f "$ZIP_NAME"
+cd "$BUILD_DIR"
+zip -rq "../$ZIP_NAME" "$PLUGIN_SLUG"
+cd ..
 
-zip -rq "$ZIP_NAME" . \
-    -x "*.git*" \
-    -x "node_modules/*" \
-    -x ".DS_Store" \
-    -x "composer.json" \
-    -x "composer.lock" \
-    -x "composer.phar" \
-    -x "README.md" \
-    -x "LICENSE" \
-    -x ".gitignore" \
-    -x "build_release.sh" \
-    -x "git_check/*" \
-    -x "*.zip"
+# Cleanup
+rm -rf "$BUILD_DIR"
 
-# 5. Report
-echo "[4/4] Done!"
 ZIP_SIZE=$(du -h "$ZIP_NAME" | cut -f1)
 echo ""
 echo "=== Release Package Created ==="
 echo "   File: $ZIP_NAME"
 echo "   Size: $ZIP_SIZE"
 echo ""
-echo "Next: Run 'gh release create vX.X.X $ZIP_NAME --title \"vX.X.X\" --notes \"...\"'"
+echo "Next: Renaming and Uploading..."

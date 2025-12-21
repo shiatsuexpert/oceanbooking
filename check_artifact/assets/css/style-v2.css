@@ -1,0 +1,321 @@
+/* Ocean Shiatsu Booking V2 - Modern Redesign */
+
+/* === ROOT & BRAND VARIABLES === */
+:root {
+    /* Design Tokens (Audit Fix v1.7.0) */
+    --osb-teal: #4E7F72;
+    --osb-sand: #F4DCC5;
+    --osb-text: #415565;
+    --osb-cream: #FCF5ED;
+
+    --osb-radius-pill: 50rem;
+    --osb-font-heading: 'Cormorant Garamond', serif;
+    --osb-font-body: 'Quicksand', sans-serif;
+
+    /* Theme Inheritances (Bootstrap) */
+    --bs-primary: var(--osb-teal);
+    --bs-secondary: var(--osb-sand);
+}
+
+/* === LAYOUT UTILITIES === */
+#osb-booking-wizard-v2 {
+    font-family: 'Quicksand', sans-serif;
+    /* Fallback */
+    color: var(--osb-text);
+}
+
+/* Desktop Split Layout */
+.osb-desktop-main {
+    transition: all 0.3s ease;
+}
+
+/* Mobile Vertical Stack */
+.osb-step-card {
+    background: #fff;
+    border: 1px solid #eee;
+    border-radius: 12px;
+    margin-bottom: 1rem;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.osb-step-card.active {
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+    border-color: var(--bs-primary, var(--osb-teal));
+}
+
+.osb-step-card.disabled {
+    opacity: 0.6;
+    pointer-events: none;
+    background: #fdfdfd;
+}
+
+.osb-step-header {
+    padding: 1rem 1.5rem;
+    background: #fff;
+    /* or Transparent */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.osb-step-title {
+    margin: 0;
+    font-family: 'Cormorant Garamond', 'Cormorant', serif;
+    font-weight: 600;
+    font-size: 1.25rem;
+    color: var(--osb-text);
+}
+
+.osb-step-content {
+    padding: 0 1.5rem 1.5rem 1.5rem;
+    display: none;
+    /* Hide by default for Accordion effect */
+}
+
+/* Show content only when Active */
+.osb-step-card.active .osb-step-content {
+    display: block;
+}
+
+/* Sticky Bottom Nav (Mobile) or Footer */
+.osb-actions-footer {
+    display: flex;
+    gap: 10px;
+    margin-top: 2rem;
+}
+
+/* === COMPONENTS === */
+
+/* Service Cards (Step 1) */
+.osb-service-card {
+    border: 1px solid #eee;
+    border-radius: 16px;
+    padding: 1rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+    background: #fff;
+    margin-bottom: 1rem;
+}
+
+.osb-service-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+    border-color: var(--osb-teal);
+}
+
+.osb-service-img {
+    width: 60px;
+    height: 60px;
+    border-radius: 8px;
+    object-fit: cover;
+    background: #f0f0f0;
+}
+
+/* Calendar (Step 2) */
+.osb-calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.osb-cal-day {
+    width: 100%;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 0.95rem;
+    transition: all 0.2s;
+}
+
+.osb-cal-day.available {
+    background: #fff;
+    border: 1px solid #eee;
+    color: var(--osb-text);
+}
+
+.osb-cal-day.available:hover {
+    background: var(--osb-sand);
+    border-color: var(--osb-sand);
+}
+
+.osb-cal-day.selected {
+    background: var(--osb-teal) !important;
+    color: #fff !important;
+    border-color: var(--osb-teal);
+}
+
+.osb-cal-day.disabled {
+    color: #ccc;
+    pointer-events: none;
+    text-decoration: line-through;
+}
+
+/* Time Slots (Step 2) */
+.osb-time-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    /* 2 Columns Mobile */
+    gap: 10px;
+}
+
+.osb-time-slot {
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 50rem;
+    /* Pill shape */
+    text-align: center;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+/* Bug #8 Fix: Time Slot Hover State */
+.osb-time-slot:hover {
+    background: var(--osb-sand);
+    border-color: var(--osb-teal);
+}
+
+.osb-time-slot.selected {
+    background: var(--osb-teal);
+    color: #fff;
+    border-color: var(--osb-teal);
+}
+
+/* Bug #7 Fix: Summary Card Styles (Step 3) */
+.osb-summary-card {
+    background: linear-gradient(135deg, #fff 0%, #f9f9f9 100%);
+    border: 1px solid #eee;
+    border-radius: 16px;
+    padding: 1.5rem;
+}
+
+.osb-summary-card h5 {
+    font-family: 'Cormorant Garamond', 'Cormorant', serif;
+    font-weight: 600;
+    color: var(--osb-text);
+    margin-bottom: 1rem;
+}
+
+.osb-summary-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.osb-summary-item:last-child {
+    border-bottom: none;
+}
+
+.osb-summary-label {
+    color: #888;
+    font-size: 0.9rem;
+}
+
+.osb-summary-value {
+    font-weight: 600;
+    color: var(--osb-text);
+}
+
+/* Bug #9 Fix: Calendar Header Serif Font */
+.osb-calendar-header {
+    font-family: 'Cormorant Garamond', 'Cormorant', serif;
+    font-size: 1.3rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+/* Bug #11 Fix: Grid Span All Utility */
+.grid-span-all {
+    grid-column: 1 / -1;
+}
+
+/* Provider Summary (Step 3 & Sidebar) */
+.osb-provider-summary {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 1.5rem;
+    background: linear-gradient(135deg, #fff 0%, #f9f9f9 100%);
+    border: 1px solid #efefef;
+    border-radius: 12px;
+}
+
+/* Confirmation Screen (Step 4) */
+.osb-confirmation-title {
+    font-family: 'Cormorant Garamond', serif;
+    color: var(--osb-teal);
+    font-size: 1.8rem;
+    margin-bottom: 1rem;
+}
+
+.osb-confirmation-message {
+    white-space: pre-line;
+    color: var(--osb-text);
+    line-height: 1.6;
+}
+
+
+
+.osb-provider-img {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-bottom: 10px;
+    border: 3px solid #fff;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.osb-summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 1rem;
+    width: 100%;
+}
+
+/* Form Styles */
+.osb-form-control {
+    border-radius: 50rem !important;
+    /* Pill inputs */
+    padding: 0.75rem 1.25rem !important;
+    border: 1px solid #ced4da;
+    background: #fdfdfd;
+}
+
+.osb-form-control:focus {
+    border-color: var(--osb-teal);
+    box-shadow: 0 0 0 0.25rem rgba(78, 127, 114, 0.25);
+}
+
+/* Desktop Sidebar Modifications */
+/* Bug #14 Fix: Changed #osb-desktop-sidebar to #osb-process-stack */
+@media (min-width: 992px) {
+    .osb-time-grid {
+        grid-template-columns: 1fr;
+        /* 1 Column on Desktop Sidebar/Split */
+    }
+
+    #osb-process-stack .osb-step-card {
+        border-right: none;
+        border-left: 4px solid transparent;
+        border-radius: 4px;
+        background: transparent;
+    }
+
+    #osb-process-stack .osb-step-card.active {
+        border-left-color: var(--osb-teal);
+        background: #f9f9f9;
+        box-shadow: none;
+    }
+}
