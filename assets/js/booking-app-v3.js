@@ -415,10 +415,10 @@ const osbV3 = {
     },
 
     selectService(serviceId) {
-        const service = this.services.find(s => s.id === serviceId);
+        // FIX: Use loose equality to handle string/number ID mismatch
+        const service = this.services.find(s => s.id == serviceId);
         if (service) {
             // FIX: Reset calendar/time state when service changes
-            // (different services may have different availability)
             this.state.selectedDate = null;
             this.state.selectedTime = null;
             this.state.monthlyAvailability = {};
@@ -429,7 +429,8 @@ const osbV3 = {
             this.state.selectedService = service;
             // Visually update cards
             this.container.querySelectorAll('.service-card').forEach(card => {
-                card.classList.toggle('selected', parseInt(card.dataset.serviceId) === serviceId);
+                const cardId = card.dataset.serviceId;
+                card.classList.toggle('selected', cardId == serviceId);
             });
 
             // FIX: Re-render footer to enable/disable Next button based on selection
