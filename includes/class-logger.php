@@ -38,7 +38,7 @@ class Ocean_Shiatsu_Booking_Logger {
 		}
 
 		global $wpdb;
-		$settings = $wpdb->get_var( "SELECT option_value FROM {$wpdb->prefix}osb_settings WHERE option_key = 'osb_enable_debug'" );
+		$settings = $wpdb->get_var( "SELECT setting_value FROM {$wpdb->prefix}osb_settings WHERE setting_key = 'osb_enable_debug'" );
 		self::$debug_cache = ( $settings === '1' );
 		return self::$debug_cache;
 	}
