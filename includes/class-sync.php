@@ -50,6 +50,9 @@ class Ocean_Shiatsu_Booking_Sync {
 			return;
 		}
 
+		// Invalidate range cache at START of sync (cache-salting)
+		update_option( 'osb_cache_version', time() );
+
 		$start_time = microtime( true );
 		$start_mem = memory_get_usage();
 

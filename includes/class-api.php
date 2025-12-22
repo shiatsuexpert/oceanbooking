@@ -167,80 +167,64 @@ class Ocean_Shiatsu_Booking_API {
 
 		$clustering = new Ocean_Shiatsu_Booking_Clustering();
 		
-		// Handle Range Request
+		// Handle Range Request - NEW: Returns structured { date: { status, slots } }
 		if ( $start_date && $end_date ) {
-			$cache_key = 'osb_avail_range_' . md5( $start_date . $end_date . $service_id );
+			// Cache-salting: Include version for instant invalidation
+			$cache_version = get_option( 'osb_cache_version', '0' );
+			$cache_key = 'osb_avail_range_' . md5( $start_date . $end_date . $service_id ) . '_' . $cache_version;
 			$cached = get_transient( $cache_key );
 			if ( false !== $cached ) {
 				return rest_ensure_response( $cached );
 			}
 
 			$result = [];
-			$current = strtotime( $start_date );
-			$end = strtotime( $end_date );
-
-			// Check for Cache Miss on first day (Month Miss Fallback)
+			$only_cache = false;
 			$pre_fetched_range = null;
-			if ( false === get_transient( 'osb_gcal_' . $start_date ) ) {
-				$source = 'cache_miss_month_fetch';
-				if ( $is_debug ) Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'API', "Month Miss: Fetching range $start_date to $end_date and warming cache." );
-				
+
+			// Try live GCal fetch with 3-second timeout
+			try {
 				$t0 = microtime(true);
 				$gcal = new Ocean_Shiatsu_Booking_Google_Calendar();
-				$pre_fetched_range = $gcal->get_events_range( $start_date, $end_date );
+				$pre_fetched_range = $gcal->get_events_range( $start_date, $end_date, ['timeout' => 3] );
 				$debug_metrics['gcal'] = microtime(true) - $t0;
+				$source = 'live_gcal';
+			} catch ( Exception $e ) {
+				// Timeout or error - switch to cache-only mode (fail-safe)
+				Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'API', 'GCal timeout, using cached events', ['error' => $e->getMessage()] );
+				$only_cache = true;
+				$source = 'cache_fallback';
 			}
+
+			$current = strtotime( $start_date );
+			$end = strtotime( $end_date );
 
 			while ( $current <= $end ) {
 				$d = date( 'Y-m-d', $current );
 				
-				$day_events = null;
-				if ( is_array( $pre_fetched_range ) ) {
-					// Filter events for this day (Replicating Sync Logic on-the-fly)
-					$day_events = [];
-					$day_start_ts = $current;
-					$day_end_ts = strtotime( '+1 day', $current ) - 1;
-
-					foreach ( $pre_fetched_range as $event ) {
-						// Note: get_events_range returns Normalized Arrays
-						$start_arr = $event['start'];
-						$end_arr = $event['end'];
-						
-						$e_start = isset( $start_arr['dateTime'] ) ? strtotime( $start_arr['dateTime'] ) : ( isset( $start_arr['date'] ) ? strtotime( $start_arr['date'] ) : 0 );
-						$e_end = isset( $end_arr['dateTime'] ) ? strtotime( $end_arr['dateTime'] ) : ( isset( $end_arr['date'] ) ? strtotime( $end_arr['date'] ) : 0 );
-
-						if ( $e_start <= $day_end_ts && $e_end >= $day_start_ts ) {
-							$day_events[] = $event;
-						}
-					}
-
-					// Pre-Warm Cache (Fail-Safe 1h TTL)
-					set_transient( 'osb_gcal_' . $d, $day_events, 3600 );
-				}
-
-				// Pass pre-fetched (or null to use cache)
-				$slots = $clustering->get_available_slots( $d, $service_id, $day_events );
+				// Calculate availability with status
+				$day_result = $this->calculate_day_availability( $d, $service_id, $pre_fetched_range, $only_cache, $clustering );
+				$result[ $d ] = $day_result;
 				
-				if ( ! empty( $slots ) ) {
-					$result[ $d ] = $slots;
-				}
 				$current = strtotime( '+1 day', $current );
 			}
 
-			set_transient( $cache_key, $result, 3 * 60 ); // 3 minutes
+			// Cache result - use shorter TTL if fallback mode (prevents caching degraded data too long)
+			$cache_ttl = $only_cache ? 60 : 30 * 60; // 1 min for fallback, 30 min normal
+			set_transient( $cache_key, $result, $cache_ttl );
 			
 			$response = rest_ensure_response( $result );
 			if ( $is_debug ) {
 				$total_dur = microtime(true) - $start_time;
-				$debug_metrics['logic'] = $total_dur - $debug_metrics['gcal'];
-				$response->header( 'Server-Timing', "total;dur=" . ($total_dur*1000) . ", gcal;dur=" . ($debug_metrics['gcal']*1000) );
+				$debug_metrics['logic'] = $total_dur - ($debug_metrics['gcal'] ?? 0);
+				$response->header( 'Server-Timing', "total;dur=" . ($total_dur*1000) . ", gcal;dur=" . (($debug_metrics['gcal'] ?? 0)*1000) );
 				
 				$data = $response->get_data();
 				$data['debug'] = [
 					'source' => $source,
+					'only_cache' => $only_cache,
 					'timestamp' => current_time('mysql'),
 					'metrics' => $debug_metrics,
-					'logs' => $clustering->get_last_debug_log() // Last day processed log
+					'logs' => $clustering->get_last_debug_log()
 				];
 				$response->set_data($data);
 			}
@@ -249,6 +233,11 @@ class Ocean_Shiatsu_Booking_API {
 
 		// Handle Single Date Request
 		$slots = $clustering->get_available_slots( $date, $service_id );
+		
+		// Null safety: ensure array response
+		if ( $slots === null || $slots === false ) {
+			$slots = [];
+		}
 		
 		$response = rest_ensure_response( $slots );
 		if ( $is_debug ) {
@@ -314,9 +303,10 @@ class Ocean_Shiatsu_Booking_API {
 			return new WP_Error( 'invalid_service', 'Invalid Service ID', array( 'status' => 400 ) );
 		}
 		
-		$duration = intval( $params['duration'] );
+		// Security: Use authoritative duration from service, NOT user input
+		$duration = intval( $service->duration_minutes );
 		if ( $duration <= 0 ) {
-			return new WP_Error( 'invalid_duration', 'Duration must be positive', array( 'status' => 400 ) );
+			return new WP_Error( 'invalid_service', 'Service has invalid duration', array( 'status' => 400 ) );
 		}
 
 		// Validate Date
@@ -808,6 +798,9 @@ class Ocean_Shiatsu_Booking_API {
 				$next_month = date('Y-m', strtotime('+1 month', $first_of_month));
 				$sync->calculate_monthly_availability( $current_month );
 				$sync->calculate_monthly_availability( $next_month );
+				
+				// Invalidate range cache via cache-salting
+				update_option( 'osb_cache_version', time() );
 			} else {
 				Ocean_Shiatsu_Booking_Logger::log( 'WARNING', 'API', 'Webhook Ignored: Unknown Channel', ['channel' => $channel_id] );
 			}
@@ -817,6 +810,9 @@ class Ocean_Shiatsu_Booking_API {
 	}
 
 	public function get_monthly_availability( $request ) {
+		// DEPRECATION WARNING: Use /availability?start_date&end_date instead
+		Ocean_Shiatsu_Booking_Logger::log( 'INFO', 'API', 'DEPRECATED: /availability/month - use /availability?start_date&end_date with structured response instead' );
+		
 		$service_id = $request->get_param( 'service_id' );
 		$month = $request->get_param( 'month' ); // YYYY-MM
 
@@ -1001,5 +997,141 @@ class Ocean_Shiatsu_Booking_API {
 			$wpdb->insert( $table, $insert_data );
 			return $wpdb->insert_id;
 		}
+	}
+
+	// ========================================================================
+	// HELPER METHODS FOR STRUCTURED RANGE RESPONSE (Tasks 1.5, 1.6, 1.8)
+	// ========================================================================
+
+	/**
+	 * Calculate availability for a single day with status and slots.
+	 * 
+	 * @param string $date 'YYYY-MM-DD'
+	 * @param int $service_id
+	 * @param array|null $pre_fetched_range Pre-fetched GCal events for range
+	 * @param bool $only_cache If true, only use cached data (no API calls)
+	 * @param Ocean_Shiatsu_Booking_Clustering $clustering Clustering instance
+	 * @return array { 'status' => string, 'slots' => array }
+	 */
+	private function calculate_day_availability( $date, $service_id, $pre_fetched_range, $only_cache, $clustering ) {
+		// 1. Check working days
+		$working_days = $this->get_working_days();
+		$day_of_week = date( 'N', strtotime( $date ) );
+		if ( ! in_array( (string)$day_of_week, $working_days ) ) {
+			return [ 'status' => 'closed', 'slots' => [] ];
+		}
+		
+		// 2. Get events for this day
+		$day_events = null;
+		if ( is_array( $pre_fetched_range ) ) {
+			$day_events = $this->filter_events_for_day( $date, $pre_fetched_range );
+			// Warm cache for future single-day requests
+			set_transient( 'osb_gcal_' . $date, $day_events, 3600 );
+		} elseif ( $only_cache ) {
+			$cached = get_transient( 'osb_gcal_' . $date );
+			if ( $cached === false ) {
+				// Cache miss in only_cache mode = unavailable (fail-safe)
+				return [ 'status' => 'unavailable', 'slots' => [] ];
+			}
+			$day_events = $cached;
+		}
+		
+		// 3. Check for holidays
+		if ( $this->is_holiday( $date, $day_events ) ) {
+			return [ 'status' => 'holiday', 'slots' => [] ];
+		}
+		
+		// 4. Calculate slots (pass only_cache to prevent cascade)
+		$slots = $clustering->get_available_slots( $date, $service_id, $day_events, $only_cache );
+		
+		// Handle cache miss from clustering
+		if ( $slots === null ) {
+			return [ 'status' => 'unavailable', 'slots' => [] ];
+		}
+		
+		// 5. Determine status
+		if ( ! empty( $slots ) ) {
+			return [ 'status' => 'available', 'slots' => $slots ];
+		} else {
+			return [ 'status' => 'booked', 'slots' => [] ];
+		}
+	}
+
+	/**
+	 * Check if a day is a holiday based on events.
+	 */
+	private function is_holiday( $date, $day_events ) {
+		if ( ! is_array( $day_events ) ) return false;
+		
+		$config = $this->get_all_settings();
+		$all_day_is_holiday = isset( $config['all_day_is_holiday'] ) ? ( $config['all_day_is_holiday'] !== '0' ) : true;
+		$holiday_keywords_raw = isset( $config['holiday_keywords'] ) ? $config['holiday_keywords'] : 'Holiday,Urlaub,Closed';
+		$holiday_keywords = array_map( 'trim', explode( ',', $holiday_keywords_raw ) );
+		
+		foreach ( $day_events as $event ) {
+			// Check all-day
+			if ( ! empty( $event['is_all_day'] ) && $all_day_is_holiday ) {
+				return true;
+			}
+			// Check keywords
+			$summary = isset( $event['summary'] ) ? $event['summary'] : '';
+			foreach ( $holiday_keywords as $keyword ) {
+				if ( ! empty( $keyword ) && stripos( $summary, $keyword ) !== false ) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Filter range events for a specific day.
+	 */
+	private function filter_events_for_day( $date, $events ) {
+		$day_events = [];
+		$day_start = strtotime( $date . ' 00:00:00' );
+		$day_end = strtotime( $date . ' 23:59:59' );
+
+		foreach ( $events as $event ) {
+			$start_arr = isset( $event['start'] ) ? $event['start'] : [];
+			$end_arr = isset( $event['end'] ) ? $event['end'] : [];
+			
+			$start = isset($start_arr['dateTime']) 
+				? strtotime($start_arr['dateTime']) 
+				: ( isset($start_arr['date']) ? strtotime($start_arr['date']) : 0 );
+			$end = isset($end_arr['dateTime']) 
+				? strtotime($end_arr['dateTime']) 
+				: ( isset($end_arr['date']) ? strtotime($end_arr['date']) : 0 );
+
+			if ( $start <= $day_end && $end >= $day_start ) {
+				$day_events[] = $event;
+			}
+		}
+		return $day_events;
+	}
+
+	/**
+	 * Get working days from settings.
+	 */
+	private function get_working_days() {
+		global $wpdb;
+		$table = $wpdb->prefix . 'osb_settings';
+		$json = $wpdb->get_var( "SELECT setting_value FROM $table WHERE setting_key = 'working_days'" );
+		$days = json_decode( $json, true ) ?: ['1','2','3','4','5'];
+		return array_map( 'strval', $days );
+	}
+
+	/**
+	 * Get all settings as array.
+	 */
+	private function get_all_settings() {
+		global $wpdb;
+		$table = $wpdb->prefix . 'osb_settings';
+		$results = $wpdb->get_results( "SELECT setting_key, setting_value FROM $table" );
+		$settings = [];
+		foreach ( $results as $row ) {
+			$settings[$row->setting_key] = $row->setting_value;
+		}
+		return $settings;
 	}
 }

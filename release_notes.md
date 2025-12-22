@@ -1,5 +1,27 @@
 # Release Notes
 
+## [2.1.0] - 2025-12-22
+### Added
+- **Range Endpoint Restructure:** `/availability?start_date&end_date` now returns structured response with `{date: {status, slots}}`.
+- **3-Second Timeout Fallback:** GCal API calls timeout gracefully with cache fallback (prevents slow page loads).
+- **Instant Time Slots:** Clicking a day shows slots immediately from pre-fetched cache (no loading spinner).
+- **Real-Time Slot Validation:** `validateAndNext()` checks slot availability before proceeding to prevent race condition overbookings.
+- **Auto-Select Initial Day:** Calendar auto-selects first available day (prioritizing available > booked) on load.
+- **Auto-Advance Month:** If current month has no clickable days, auto-advances to next month once.
+
+### Changed
+- **Calendar Start:** Now starts from tomorrow's month (same-day bookings disallowed).
+- **State Refactor:** `monthlyAvailability` → `monthlyData` for structured response support.
+- **Inline Errors:** Replaced `window.alert()` with inline `showError()` for better UX.
+
+### Fixed
+- **UX: Auto-Scroll Disabled:** `autoSelectInitialDay` no longer scrolls page on mobile.
+- **UX: User Data Persistence:** `startOver()` now reloads saved user data for returning customers.
+- **Cache Poisoning:** Fallback mode uses 1-min TTL (not 30-min) to prevent caching degraded data.
+
+### Deprecated
+- `/availability/month` endpoint - use `/availability?start_date&end_date` instead.
+
 ### Added
 - **Frontend Redesign (V2 Beta):** Brand-aligned booking wizard matching `oceanshiatsu.at`.
     - **Dual Version System:** Toggle between "Classic (V1)" and "Modern Redesign (V2)" in Admin Settings.

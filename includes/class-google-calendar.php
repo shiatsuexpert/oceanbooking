@@ -194,8 +194,25 @@ class Ocean_Shiatsu_Booking_Google_Calendar {
 		return $all_events;
 	}
 
-	public function get_events_range( $start_date, $end_date ) {
+	public function get_events_range( $start_date, $end_date, $options = [] ) {
 		if ( ! $this->is_connected ) return [];
+
+		// Timeout option for API calls (used by range endpoint fallback logic)
+		$timeout = isset( $options['timeout'] ) ? intval( $options['timeout'] ) : 30;
+		
+		// Apply timeout to HTTP client if available
+		// SAFE APPROACH: Create new Guzzle client with merged config (preserves auth)
+		try {
+			$http_client = $this->client->getHttpClient();
+			$this->client->setHttpClient(
+				new \GuzzleHttp\Client([
+					'timeout' => $timeout,
+					'base_uri' => 'https://www.googleapis.com',
+				])
+			);
+		} catch ( Exception $e ) {
+			// Ignore if Guzzle not available in expected way
+		}
 
 		// Check Cache (Optional: Cache the *entire* range? It might be large.
 		// For now, let's rely on short API transients handled by the caller or no cache for range.)

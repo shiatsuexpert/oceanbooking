@@ -50,7 +50,7 @@ const osbV3 = {
 
         // Calendar state
         currentMonth: new Date(),
-        monthlyAvailability: {},
+        monthlyData: {},       // NEW: { 'YYYY-MM-DD': { status, slots } }
         daySlots: [],
 
         // UI state
@@ -456,11 +456,69 @@ const osbV3 = {
     },
 
     nextStep() {
+        // For step 2: Use validateAndNext for real-time slot validation
+        if (this.state.step === 2 && !this.state.isWaitlist) {
+            this.validateAndNext();
+            return;
+        }
+
         // Validate before proceeding
         if (!this.validateCurrentStep()) return;
 
         if (this.state.step < 4) {
             this.goToStep(this.state.step + 1);
+        }
+    },
+
+    // Task 2.5: Real-time slot validation (ported from V2)
+    // Prevents race condition where slot was taken between selection and submission
+    async validateAndNext() {
+        if (!this.state.selectedDate || !this.state.selectedTime) {
+            this.showError(this.getLabel('error_required')); // UX Fix #3: inline error
+            return;
+        }
+
+        this.showLoading();
+        this.clearError(); // Clear any previous errors
+
+        try {
+            const serviceId = this.state.selectedService?.id;
+            const date = this.state.selectedDate;
+            const time = this.state.selectedTime;
+
+            // Validate slot is still available (real-time check)
+            const response = await fetch(
+                `${this.state.config.apiUrl}availability?date=${date}&service_id=${serviceId}`,
+                { headers: { 'X-WP-Nonce': this.state.config.nonce } }
+            );
+
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+            const slots = await response.json();
+
+            // Check if selected time is still in available slots
+            const isValid = Array.isArray(slots) && slots.includes(time);
+
+            if (isValid) {
+                this.goToStep(3);
+            } else {
+                // UX Fix #3: Use inline showError instead of blocking alert
+                const slotsContainer = this.container.querySelector('#timeSlotsContainer');
+                this.showError(
+                    this.getLabel('error_slot_taken') || 'Dieser Termin wurde gerade vergeben. Die Ansicht wurde aktualisiert.',
+                    slotsContainer
+                );
+                // Refresh availability
+                const currentMonth = this.state.currentMonth;
+                await this.fetchMonthlyAvailability(currentMonth.getFullYear(), currentMonth.getMonth() + 1, false);
+                this.state.selectedTime = null;
+                this.renderTimeSlots();
+            }
+        } catch (err) {
+            console.error('OSB V3: Slot validation failed', err);
+            this.showError('Fehler bei der Validierung. Bitte versuche es erneut.');
+        } finally {
+            this.hideLoading();
         }
     },
 
@@ -621,6 +679,11 @@ const osbV3 = {
         slotsContainer.id = 'timeSlotsContainer';
         container.appendChild(slotsContainer);
 
+        // Task 2.6: Calendar starts from tomorrow's month (not today's)
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        this.state.currentMonth = new Date(tomorrow.getFullYear(), tomorrow.getMonth(), 1);
+
         // Render calendar grid
         this.renderCalendarGrid();
 
@@ -680,7 +743,7 @@ const osbV3 = {
         for (let d = 1; d <= lastDay.getDate(); d++) {
             const cellDate = new Date(year, month, d);
             const dateStr = this.formatDateForAPI(cellDate);
-            const availability = this.state.monthlyAvailability[dateStr];
+            const dayData = this.state.monthlyData[dateStr] || { status: 'closed', slots: [] };
 
             const dayEl = this.el('div', {
                 className: 'calendar-day',
@@ -688,14 +751,18 @@ const osbV3 = {
                 'data-date': dateStr,
             }, String(d));
 
-            // Past days
-            if (cellDate < today) {
+            // Past days or today (same-day bookings disallowed)
+            if (cellDate <= today) {
                 dayEl.className = 'calendar-day disabled';
                 dayEl.removeAttribute('data-action');
-            } else if (availability === 'available') {
+            } else if (dayData.status === 'available') {
                 dayEl.classList.add('available');
-            } else if (availability === 'booked') {
+            } else if (dayData.status === 'booked') {
                 dayEl.classList.add('booked');
+            } else {
+                // closed, holiday, unavailable
+                dayEl.className = 'calendar-day disabled';
+                dayEl.removeAttribute('data-action');
             }
 
             // Selected
@@ -712,19 +779,26 @@ const osbV3 = {
         calendarCard.appendChild(grid);
     },
 
-    async fetchMonthlyAvailability(year, month) {
+    // NEW: Fetch availability using range endpoint (structured response)
+    async fetchMonthlyAvailability(year, month, autoSelectAfter = true) {
         this.showLoading();
 
-        // FIX: Track request to prevent race condition (same pattern as slots)
+        // Track request to prevent race condition
         const requestId = Date.now();
         this.state._lastAvailabilityRequest = requestId;
 
         try {
             const serviceId = this.state.selectedService?.id;
-            // FIX: Use correct endpoint and YYYY-MM format
-            const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+            if (!serviceId) throw new Error('No service selected');
+
+            // Calculate start and end dates for the month
+            const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+            const lastDay = new Date(year, month, 0).getDate();
+            const endDate = `${year}-${String(month).padStart(2, '0')}-${lastDay}`;
+
+            // Use range endpoint (structured response with status + slots)
             const response = await fetch(
-                `${this.state.config.apiUrl}availability/month?month=${monthStr}&service_id=${serviceId}`,
+                `${this.state.config.apiUrl}availability?start_date=${startDate}&end_date=${endDate}&service_id=${serviceId}`,
                 { headers: { 'X-WP-Nonce': this.state.config.nonce } }
             );
 
@@ -734,28 +808,75 @@ const osbV3 = {
 
             const data = await response.json();
 
-            // FIX: Only update state if this is still the latest request
+            // Only update state if this is still the latest request
             if (this.state._lastAvailabilityRequest !== requestId) {
                 return; // Stale response, ignore
             }
 
-            // Merge into state
-            if (data.dates) {
-                Object.assign(this.state.monthlyAvailability, data.dates);
-            }
+            // Store structured data: { 'YYYY-MM-DD': { status, slots } }
+            this.state.monthlyData = { ...this.state.monthlyData, ...data };
 
             // Re-render calendar with availability
             this.renderCalendarGrid();
+
+            // Auto-select first clickable day (Tasks 2.7)
+            if (autoSelectAfter) {
+                this.autoSelectInitialDay(false);
+            }
         } catch (err) {
             console.error('OSB V3: Failed to fetch availability', err);
-            // FIX: Show user-visible error
             const calendarCard = this.container.querySelector('#calendarContainer');
             if (calendarCard) {
-                this.showError('Verfügbarkeit konnte nicht geladen werden.', calendarCard);
+                this.showError('Verfügbarkeit konnte nicht geladen werden. Bitte versuche es erneut.', calendarCard);
             }
         } finally {
             this.hideLoading();
         }
+    },
+
+    // NEW: Auto-select first clickable day (Task 2.7 - Option C + Priority Fix)
+    autoSelectInitialDay(isRetry = false) {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(0, 0, 0, 0);
+        const tomorrowStr = this.formatDateForAPI(tomorrow);
+
+        const sortedDates = Object.keys(this.state.monthlyData).sort();
+
+        // PASS 1: Find first AVAILABLE day (prioritize booking over waitlist)
+        for (const dateStr of sortedDates) {
+            if (dateStr < tomorrowStr) continue;
+            const dayData = this.state.monthlyData[dateStr];
+            if (dayData && dayData.status === 'available') {
+                this.selectDate(dateStr, true); // skipScroll=true (UX Fix #1)
+                return;
+            }
+        }
+
+        // PASS 2: No available days - find first BOOKED day (waitlist)
+        for (const dateStr of sortedDates) {
+            if (dateStr < tomorrowStr) continue;
+            const dayData = this.state.monthlyData[dateStr];
+            if (dayData && dayData.status === 'booked') {
+                this.selectDate(dateStr, true); // skipScroll=true (UX Fix #1)
+                return;
+            }
+        }
+
+        // No clickable days found in this month
+        if (!isRetry) {
+            // Auto-advance to next month, try once more
+            this.navigateToNextMonth(true);
+        }
+        // If isRetry=true and still nothing, leave empty - user navigates manually
+    },
+
+    // NEW: Navigate to next month with optional auto-select
+    navigateToNextMonth(autoSelectAfter = false) {
+        const next = new Date(this.state.currentMonth);
+        next.setMonth(next.getMonth() + 1);
+        this.state.currentMonth = next;
+        this.fetchMonthlyAvailability(next.getFullYear(), next.getMonth() + 1, autoSelectAfter);
     },
 
     changeMonth(delta) {
@@ -766,22 +887,34 @@ const osbV3 = {
         this.fetchMonthlyAvailability(date.getFullYear(), date.getMonth() + 1);
     },
 
-    selectDate(dateStr) {
+    // skipScroll: prevents auto-scroll when called programmatically (e.g., autoSelectInitialDay)
+    selectDate(dateStr, skipScroll = false) {
         this.state.selectedDate = dateStr;
         this.state.selectedTime = null;
 
-        // Check if booked → show waitlist
-        const availability = this.state.monthlyAvailability[dateStr];
-        if (availability === 'booked') {
+        // Get day data from cached monthlyData (instant slots!)
+        const dayData = this.state.monthlyData[dateStr] || { status: 'closed', slots: [] };
+
+        if (dayData.status === 'booked') {
+            // Show waitlist form
             this.state.isWaitlist = true;
             this.state.mode = 'waitlist';
             this.renderWaitlistForm();
-            // FIX: Scroll to waitlist form for mobile visibility
-            setTimeout(() => {
-                const slotsContainer = this.container.querySelector('#timeSlotsContainer');
-                if (slotsContainer) slotsContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }, 100);
+            // Only scroll on user click, not auto-select (UX Fix #1)
+            if (!skipScroll) {
+                setTimeout(() => {
+                    const slotsContainer = this.container.querySelector('#timeSlotsContainer');
+                    if (slotsContainer) slotsContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 100);
+            }
+        } else if (dayData.status === 'available' && dayData.slots.length > 0) {
+            // INSTANT SLOTS: Use cached slots, no API call needed!
+            this.state.isWaitlist = false;
+            this.state.mode = 'booking';
+            this.state.daySlots = dayData.slots;
+            this.renderTimeSlots();
         } else {
+            // Fallback to API fetch (shouldn't happen with proper data)
             this.state.isWaitlist = false;
             this.state.mode = 'booking';
             this.fetchTimeSlots(dateStr);
@@ -792,7 +925,7 @@ const osbV3 = {
             day.classList.toggle('selected', day.dataset.date === dateStr);
         });
 
-        // FIX: Re-render footer to update Next button state
+        // Re-render footer to update Next button state
         this.renderFooter();
     },
 
@@ -959,10 +1092,13 @@ const osbV3 = {
             newsletter: false,
         };
         this.state.currentMonth = new Date();
-        this.state.monthlyAvailability = {};
+        this.state.monthlyData = {}; // Fixed: was monthlyAvailability
         this.state.daySlots = [];
         this.state.bookingSummary = null;
         this.state.originalBooking = null;
+
+        // UX Fix #4: Reload saved user data for returning users
+        this.loadSavedUserData();
 
         // Re-render Step 1
         this.renderStep(1);

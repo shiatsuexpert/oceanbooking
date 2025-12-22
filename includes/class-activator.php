@@ -178,6 +178,11 @@ class Ocean_Shiatsu_Booking_Activator {
 		// Migration: Add price_range column if missing (for updates without reactivation)
 		self::add_column_if_missing( $table_name_services, 'price_range', "varchar(50) DEFAULT '' AFTER price" );
 
+		// Initialize cache version for cache-salting (if not exists)
+		if ( get_option( 'osb_cache_version' ) === false ) {
+			add_option( 'osb_cache_version', time(), '', 'no' ); // 'no' = don't autoload
+		}
+
 		// Insert default services if table is empty
 		$count = $wpdb->get_var( "SELECT COUNT(*) FROM $table_name_services" );
 		if ( $count == 0 ) {

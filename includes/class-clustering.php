@@ -22,7 +22,7 @@ class Ocean_Shiatsu_Booking_Clustering {
 	 * @param int $service_id
 	 * @return array List of available start times (e.g., ['09:00', '10:15'])
 	 */
-	public function get_available_slots( $date, $service_id, $pre_fetched_events = null ) {
+	public function get_available_slots( $date, $service_id, $pre_fetched_events = null, $only_cache = false ) {
 		global $wpdb;
 		$is_debug = Ocean_Shiatsu_Booking_Logger::is_debug_enabled();
 		
@@ -62,8 +62,14 @@ class Ocean_Shiatsu_Booking_Clustering {
 		$biz_end_ts = ( new DateTime( $date . ' ' . $working_hours['end'], $tz ) )->getTimestamp();
 
 		// 4. Fetch Busy Slots (Local + GCal) - already includes all-day handling
-		// Pass pre_fetched_events to optimize N+1
-		$busy_slots = $this->get_busy_slots( $date, $pre_fetched_events );
+		// Pass pre_fetched_events and only_cache to optimize N+1 and prevent API calls on timeout fallback
+		$busy_slots = $this->get_busy_slots( $date, $pre_fetched_events, $only_cache );
+		
+		// Cache miss in only_cache mode - signal caller to use 'unavailable' status
+		if ( $busy_slots === null ) {
+			return null;
+		}
+		
 		if ( $is_debug ) {
 			$this->last_debug_log['blockers'] = $busy_slots;
 			$this->last_debug_log['steps'][] = "Found " . count($busy_slots) . " blockers.";
@@ -328,7 +334,7 @@ class Ocean_Shiatsu_Booking_Clustering {
 		return array_slice( $result, 0, $show_count );
 	}
 
-	private function get_busy_slots( $date, $pre_fetched_events = null ) {
+	private function get_busy_slots( $date, $pre_fetched_events = null, $only_cache = false ) {
 		global $wpdb;
 		$busy = [];
 		$is_debug = is_user_logged_in();
@@ -340,8 +346,18 @@ class Ocean_Shiatsu_Booking_Clustering {
 		if ( is_array( $pre_fetched_events ) ) {
 			$gcal_events = $pre_fetched_events;
 			$gcal_active = true;
+		} elseif ( $only_cache ) {
+			// ONLY_CACHE MODE: Check transient, do NOT call API (prevents timeout cascade)
+			$cached = get_transient( 'osb_gcal_' . $date );
+			if ( $cached !== false ) {
+				$gcal_events = $cached;
+				$gcal_active = true;
+			} else {
+				// Cache miss in only_cache mode - signal failure to caller
+				return null;
+			}
 		} else {
-			// Fallback to daily fetch (Frontend click)
+			// Normal mode: Fallback to daily fetch (Frontend click)
 			$gcal_events = $this->gcal->get_events_for_date( $date );
 			$gcal_active = ( $gcal_events !== false );
 		}
