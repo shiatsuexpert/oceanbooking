@@ -988,12 +988,13 @@ const osbV3 = {
 
         const grid = this.el('div', { className: 'time-slots' });
 
+        // FIX: slots are strings like "10:00", not objects with .time
         this.state.daySlots.forEach(slot => {
             const slotEl = this.el('div', {
-                className: `time-slot ${this.state.selectedTime === slot.time ? 'selected' : ''}`,
+                className: `time-slot ${this.state.selectedTime === slot ? 'selected' : ''}`,
                 'data-action': 'select-time',
-                'data-time': slot.time,
-            }, slot.time);
+                'data-time': slot,
+            }, slot);
             grid.appendChild(slotEl);
         });
 

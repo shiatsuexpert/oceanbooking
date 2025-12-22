@@ -1,5 +1,9 @@
 # Release Notes
 
+## [2.1.1] - 2025-12-22
+### Fixed
+- **Critical: Time slots not displaying** - Fixed `renderTimeSlots()` which expected `slot.time` but API returns plain strings like `"10:00"`.
+
 ## [2.1.0] - 2025-12-22
 ### Added
 - **Range Endpoint Restructure:** `/availability?start_date&end_date` now returns structured response with `{date: {status, slots}}`.
