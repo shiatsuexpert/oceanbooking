@@ -281,6 +281,19 @@ const osbV3 = {
         return `${d}.${m}.${y}`;
     },
 
+    /**
+     * Format time slot with duration: "10:00" + 60min → "10:00 - 11:00"
+     */
+    formatTimeRange(startTime, durationMinutes) {
+        const [hours, mins] = startTime.split(':').map(Number);
+        const startMinutes = hours * 60 + mins;
+        const endMinutes = startMinutes + durationMinutes;
+        const endHours = Math.floor(endMinutes / 60);
+        const endMins = endMinutes % 60;
+        const endTime = `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`;
+        return `${startTime} - ${endTime}`;
+    },
+
     showLoading() {
         this.state.loading = true;
         const overlay = this.container.querySelector('.loading-overlay');
@@ -988,13 +1001,17 @@ const osbV3 = {
 
         const grid = this.el('div', { className: 'time-slots' });
 
-        // FIX: slots are strings like "10:00", not objects with .time
+        // Get service duration for calculating end time
+        const duration = this.state.selectedService?.duration || 60;
+
+        // Slots are strings like "10:00" - display as "10:00 - 11:00"
         this.state.daySlots.forEach(slot => {
+            const displayText = this.formatTimeRange(slot, duration);
             const slotEl = this.el('div', {
                 className: `time-slot ${this.state.selectedTime === slot ? 'selected' : ''}`,
                 'data-action': 'select-time',
-                'data-time': slot,
-            }, slot);
+                'data-time': slot, // Store just start time for booking
+            }, displayText);
             grid.appendChild(slotEl);
         });
 

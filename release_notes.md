@@ -1,5 +1,9 @@
 # Release Notes
 
+## [2.1.2] - 2025-12-22
+### Added
+- **Time Range Display:** Time slots now show as "10:00 - 11:00" (calculated from service duration) matching the prototype design.
+
 ## [2.1.1] - 2025-12-22
 ### Fixed
 - **Critical: Time slots not displaying** - Fixed `renderTimeSlots()` which expected `slot.time` but API returns plain strings like `"10:00"`.
