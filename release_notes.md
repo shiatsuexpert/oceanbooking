@@ -1,5 +1,10 @@
 # Release Notes
 
+## [2.1.3] - 2025-12-23
+### Fixed
+- **Critical: Weiter button not working on Step 2** - Fixed slot validation that always failed because API returns `{slots: [...]}` object but code expected plain array.
+- **Wrong error message on Step 2** - Now shows "Bitte wähle zuerst Datum und Uhrzeit" instead of generic "Pflichtfelder" message.
+
 ## [2.1.2] - 2025-12-22
 ### Added
 - **Time Range Display:** Time slots now show as "10:00 - 11:00" (calculated from service duration) matching the prototype design.

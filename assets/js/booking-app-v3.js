@@ -487,7 +487,8 @@ const osbV3 = {
     // Prevents race condition where slot was taken between selection and submission
     async validateAndNext() {
         if (!this.state.selectedDate || !this.state.selectedTime) {
-            this.showError(this.getLabel('error_required')); // UX Fix #3: inline error
+            // Specific error for Step 2 - not the generic "fill fields" message
+            this.showError('Bitte wähle zuerst Datum und Uhrzeit.');
             return;
         }
 
@@ -507,7 +508,10 @@ const osbV3 = {
 
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-            const slots = await response.json();
+            const data = await response.json();
+
+            // FIX: API returns {slots: [...], debug: {...}} - extract the slots array
+            const slots = data.slots || data;
 
             // Check if selected time is still in available slots
             const isValid = Array.isArray(slots) && slots.includes(time);
@@ -515,7 +519,7 @@ const osbV3 = {
             if (isValid) {
                 this.goToStep(3);
             } else {
-                // UX Fix #3: Use inline showError instead of blocking alert
+                // Slot was taken - show inline error
                 const slotsContainer = this.container.querySelector('#timeSlotsContainer');
                 this.showError(
                     this.getLabel('error_slot_taken') || 'Dieser Termin wurde gerade vergeben. Die Ansicht wurde aktualisiert.',
