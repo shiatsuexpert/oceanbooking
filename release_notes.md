@@ -1,5 +1,18 @@
 # Release Notes
 
+## [2.1.4] - 2025-12-23
+### Changed
+- **Step 3 UI redesigned to match prototype:**
+  - Form sections first (Persönliche Angaben, Details & Wünsche), summary at bottom
+  - Icons in section headers (user, comment, info)
+  - Uppercase muted labels like prototype
+  - Time shown as range (10:30 - 11:30)
+  - Added location/Ort (Ocean Shiatsu Praxis, Wasagasse 3, 1090 Wien)
+  - Added "Eingaben lokal merken" checkbox
+  - Summary card with beige background (#fdfbf7)
+  - Price row with green text for paid services
+  - Phone field now optional (no asterisk)
+
 ## [2.1.3] - 2025-12-23
 ### Fixed
 - **Critical: Weiter button not working on Step 2** - Fixed slot validation that always failed because API returns `{slots: [...]}` object but code expected plain array.

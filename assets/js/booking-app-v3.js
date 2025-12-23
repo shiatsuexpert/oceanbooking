@@ -1156,61 +1156,39 @@ const osbV3 = {
         const title = this.el('h3', { className: 'text-center mb-4' }, this.getLabel('your_details'));
         container.appendChild(title);
 
-        // Summary card
-        const summary = this.el('div', { className: 'form-section-card' });
-        const summaryTitle = this.el('div', { className: 'form-section-title' }, 'Deine Buchung');
-        summary.appendChild(summaryTitle);
-
-        const addSummaryRow = (label, value) => {
-            const row = this.el('div', { className: 'summary-item-row' });
-            row.appendChild(this.el('span', {}, label));
-            row.appendChild(this.el('span', { className: 'text-end fw-medium' }, value));
-            summary.appendChild(row);
-        };
-
-        addSummaryRow('Behandlung', this.state.selectedService?.name || '');
-        addSummaryRow('Datum', this.formatAPIDateForDisplay(this.state.selectedDate));
-        if (this.state.isWaitlist) {
-            addSummaryRow('Zeitraum', `${this.state.waitTimeFrom} - ${this.state.waitTimeTo}`);
-            addSummaryRow('Status', 'Warteliste');
-        } else {
-            addSummaryRow('Zeit', this.state.selectedTime);
-        }
-
-        container.appendChild(summary);
-
-        // Contact form
-        const form = this.el('div', { className: 'form-section-card' });
-        const formTitle = this.el('div', { className: 'form-section-title' }, this.getLabel('your_details'));
-        form.appendChild(formTitle);
+        // --- SECTION 1: Personal Details (Persönliche Angaben) ---
+        const personalCard = this.el('div', { className: 'form-section-card' });
+        const personalTitle = this.el('div', { className: 'form-section-title' });
+        personalTitle.innerHTML = `${this.icons.user} Persönliche Angaben`;
+        personalCard.appendChild(personalTitle);
 
         // Salutation
-        const salRow = this.el('div', { className: 'mb-3' });
-        const salLabel = this.el('label', { className: 'form-label' }, this.getLabel('salutation'));
-        salRow.appendChild(salLabel);
-
-        const salSelect = this.el('select', { name: 'salutation', className: 'form-select' });
+        const salRow = this.el('div', { className: 'col-12 mb-3' });
+        salRow.appendChild(this.el('label', { className: 'form-label small text-uppercase text-muted' }, this.getLabel('salutation') + ' *'));
+        const salSelect = this.el('select', { name: 'salutation', className: 'form-select', required: 'required' });
         [
-            { value: 'n', label: this.getLabel('salutation_none') },
-            { value: 'm', label: this.getLabel('salutation_mr') },
+            { value: '', label: 'Bitte wählen...', disabled: true },
             { value: 'w', label: this.getLabel('salutation_mrs') },
+            { value: 'm', label: this.getLabel('salutation_mr') },
         ].forEach(opt => {
             const option = this.el('option', { value: opt.value }, opt.label);
-            if (this.state.formData.salutation === opt.value) option.selected = true;
+            if (opt.disabled) option.disabled = true;
+            if (this.state.formData.salutation === opt.value || (!this.state.formData.salutation && opt.value === '')) option.selected = true;
             salSelect.appendChild(option);
         });
         salRow.appendChild(salSelect);
-        form.appendChild(salRow);
+        personalCard.appendChild(salRow);
 
-        // Name row
-        const nameRow = this.el('div', { className: 'row mb-3' });
+        // Name row (two columns)
+        const nameRow = this.el('div', { className: 'row g-3 mb-3' });
 
         const fnCol = this.el('div', { className: 'col-md-6' });
-        fnCol.appendChild(this.el('label', { className: 'form-label' }, this.getLabel('first_name') + ' *'));
+        fnCol.appendChild(this.el('label', { className: 'form-label small text-uppercase text-muted' }, this.getLabel('first_name') + ' *'));
         const fnInput = this.el('input', {
             type: 'text',
             name: 'firstName',
             className: 'form-control',
+            placeholder: 'Dein Vorname',
             value: this.state.formData.firstName,
             required: 'required',
         });
@@ -1218,61 +1196,57 @@ const osbV3 = {
         nameRow.appendChild(fnCol);
 
         const lnCol = this.el('div', { className: 'col-md-6' });
-        lnCol.appendChild(this.el('label', { className: 'form-label' }, this.getLabel('last_name') + ' *'));
+        lnCol.appendChild(this.el('label', { className: 'form-label small text-uppercase text-muted' }, this.getLabel('last_name') + ' *'));
         const lnInput = this.el('input', {
             type: 'text',
             name: 'lastName',
             className: 'form-control',
+            placeholder: 'Dein Nachname',
             value: this.state.formData.lastName,
             required: 'required',
         });
         lnCol.appendChild(lnInput);
         nameRow.appendChild(lnCol);
-
-        form.appendChild(nameRow);
+        personalCard.appendChild(nameRow);
 
         // Email
-        const emailRow = this.el('div', { className: 'mb-3' });
-        emailRow.appendChild(this.el('label', { className: 'form-label' }, this.getLabel('email') + ' *'));
+        const emailRow = this.el('div', { className: 'col-12 mb-3' });
+        emailRow.appendChild(this.el('label', { className: 'form-label small text-uppercase text-muted' }, this.getLabel('email') + ' *'));
         const emailInput = this.el('input', {
             type: 'email',
             name: 'email',
             className: 'form-control',
+            placeholder: 'deine@email.at',
             value: this.state.formData.email,
             required: 'required',
         });
         emailRow.appendChild(emailInput);
-        form.appendChild(emailRow);
+        personalCard.appendChild(emailRow);
 
-        // Phone (required)
-        const phoneRow = this.el('div', { className: 'mb-3' });
-        phoneRow.appendChild(this.el('label', { className: 'form-label' }, this.getLabel('phone') + ' *'));
+        // Phone
+        const phoneRow = this.el('div', { className: 'col-12 mb-3' });
+        phoneRow.appendChild(this.el('label', { className: 'form-label small text-uppercase text-muted' }, this.getLabel('phone')));
         const phoneInput = this.el('input', {
             type: 'tel',
             name: 'phone',
             className: 'form-control',
+            placeholder: '+43 664 ...',
             value: this.state.formData.phone,
-            required: 'required',
         });
         phoneRow.appendChild(phoneInput);
-        form.appendChild(phoneRow);
+        personalCard.appendChild(phoneRow);
 
-        // Notes
-        const notesRow = this.el('div', { className: 'mb-3' });
-        notesRow.appendChild(this.el('label', { className: 'form-label' }, this.getLabel('notes')));
-        const notesInput = this.el('textarea', {
-            name: 'notes',
-            className: 'form-control',
-            rows: '3',
-            placeholder: this.getLabel('notes_placeholder'),
-        });
-        notesInput.value = this.state.formData.notes;
-        notesRow.appendChild(notesInput);
-        form.appendChild(notesRow);
+        container.appendChild(personalCard);
+
+        // --- SECTION 2: Details & Wishes ---
+        const detailsCard = this.el('div', { className: 'form-section-card' });
+        const detailsTitle = this.el('div', { className: 'form-section-title' });
+        detailsTitle.innerHTML = `${this.icons.comment} Details & Wünsche`;
+        detailsCard.appendChild(detailsTitle);
 
         // Reminder preference
-        const reminderRow = this.el('div', { className: 'mb-3' });
-        reminderRow.appendChild(this.el('label', { className: 'form-label' }, this.getLabel('reminder_preference')));
+        const reminderRow = this.el('div', { className: 'col-12 mb-3' });
+        reminderRow.appendChild(this.el('label', { className: 'form-label small text-uppercase text-muted' }, this.getLabel('reminder_preference')));
         const reminderSelect = this.el('select', { name: 'reminderPreference', className: 'form-select' });
         [
             { value: 'none', label: this.getLabel('reminder_none') },
@@ -1284,10 +1258,39 @@ const osbV3 = {
             reminderSelect.appendChild(option);
         });
         reminderRow.appendChild(reminderSelect);
-        form.appendChild(reminderRow);
+        detailsCard.appendChild(reminderRow);
 
-        // Newsletter
-        const newsletterRow = this.el('div', { className: 'form-check mb-3' });
+        // Notes
+        const notesRow = this.el('div', { className: 'col-12 mb-3' });
+        notesRow.appendChild(this.el('label', { className: 'form-label small text-uppercase text-muted' }, this.getLabel('notes') + ' (Optional)'));
+        const notesInput = this.el('textarea', {
+            name: 'notes',
+            className: 'form-control',
+            rows: '2',
+            placeholder: '',
+        });
+        notesInput.value = this.state.formData.notes;
+        notesRow.appendChild(notesInput);
+        detailsCard.appendChild(notesRow);
+
+        // Checkboxes row
+        const checkRow = this.el('div', { className: 'col-12 mt-3' });
+
+        // Save locally checkbox
+        const saveCheck = this.el('div', { className: 'form-check mb-2' });
+        const saveInput = this.el('input', {
+            type: 'checkbox',
+            name: 'saveLocally',
+            className: 'form-check-input',
+            id: 'saveLocallyCheck',
+            checked: 'checked',
+        });
+        saveCheck.appendChild(saveInput);
+        saveCheck.appendChild(this.el('label', { className: 'form-check-label small text-muted', for: 'saveLocallyCheck' }, 'Eingaben lokal merken'));
+        checkRow.appendChild(saveCheck);
+
+        // Newsletter checkbox
+        const nlCheck = this.el('div', { className: 'form-check' });
         const nlInput = this.el('input', {
             type: 'checkbox',
             name: 'newsletter',
@@ -1295,12 +1298,54 @@ const osbV3 = {
             id: 'newsletterCheck',
         });
         if (this.state.formData.newsletter) nlInput.checked = true;
-        newsletterRow.appendChild(nlInput);
-        const nlLabel = this.el('label', { className: 'form-check-label', for: 'newsletterCheck' }, this.getLabel('newsletter_opt_in'));
-        newsletterRow.appendChild(nlLabel);
-        form.appendChild(newsletterRow);
+        nlCheck.appendChild(nlInput);
+        nlCheck.appendChild(this.el('label', { className: 'form-check-label small text-muted', for: 'newsletterCheck' }, 'Dürfen wir dir Angebote per E-Mail zusenden?'));
+        checkRow.appendChild(nlCheck);
 
-        container.appendChild(form);
+        detailsCard.appendChild(checkRow);
+        container.appendChild(detailsCard);
+
+        // --- SECTION 3: Booking Summary (at BOTTOM per prototype) ---
+        const summaryCard = this.el('div', { className: 'form-section-card', style: 'background-color: #fdfbf7;' });
+        const summaryTitle = this.el('div', { className: 'form-section-title' });
+        summaryTitle.innerHTML = `${this.icons.info} Deine Buchung`;
+        summaryCard.appendChild(summaryTitle);
+
+        const addSummaryRow = (label, value, extraClass = '') => {
+            const row = this.el('div', { className: 'summary-item-row' + extraClass });
+            row.appendChild(this.el('span', { className: 'text-muted small' }, label));
+            const valSpan = this.el('span', { className: 'fw-bold small text-end' });
+            valSpan.innerHTML = value;
+            row.appendChild(valSpan);
+            summaryCard.appendChild(row);
+        };
+
+        addSummaryRow('Service', this.state.selectedService?.name || '');
+
+        // Format date and time as prototype
+        const dateStr = this.formatAPIDateForDisplay(this.state.selectedDate);
+        if (this.state.isWaitlist) {
+            addSummaryRow('Datum', dateStr);
+            addSummaryRow('Warteliste', `${this.state.waitTimeFrom} - ${this.state.waitTimeTo}`);
+        } else {
+            // Show time as range: "10:30 - 11:30"
+            const timeRange = this.formatTimeRange(this.state.selectedTime, this.state.selectedService?.duration || 60);
+            addSummaryRow('Datum & Uhrzeit', `${dateStr}, ${timeRange}`);
+        }
+
+        // Location / Ort
+        addSummaryRow('Ort', 'Ocean Shiatsu Praxis<br>Wasagasse 3, 1090 Wien');
+
+        // Price (if not free)
+        const price = this.state.selectedService?.price || '';
+        if (price && price !== 'Kostenlos') {
+            const priceRow = this.el('div', { className: 'summary-item-row pt-2 border-top' });
+            priceRow.appendChild(this.el('span', { className: 'text-muted small' }, 'Preis'));
+            priceRow.appendChild(this.el('span', { className: 'fw-bold text-success small' }, price));
+            summaryCard.appendChild(priceRow);
+        }
+
+        container.appendChild(summaryCard);
     },
 
     // --- Step 4: Confirmation ---
