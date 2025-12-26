@@ -449,6 +449,18 @@ const osbV3 = {
 
             // FIX: Re-render footer to enable/disable Next button based on selection
             this.renderFooter();
+
+            // Auto-advance to Step 2 (PATCH v2.1.7)
+            // FIX v2.1.8: Explicitly set step and render to ensure transition happens
+            // bypassing goToStep() validation which might be failing on Step 1 check logic
+            this.state.step = 2;
+            this.renderStep(2);
+
+            // Also scroll to top for Step 2
+            if (this.container) {
+                this.container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                this.container.focus();
+            }
         }
     },
 
@@ -635,8 +647,18 @@ const osbV3 = {
         }
 
         // Focus management for accessibility
-        contentArea.setAttribute('tabindex', '-1');
-        contentArea.focus();
+        // FIX v2.1.8: Mobile Focus Bug - Passive load for Step 1
+        if (num > 1) {
+            // Focus the container (top) instead of content area (middle)
+            if (this.container) {
+                this.container.focus();
+            }
+        } else {
+            // Step 1: No focus on load to prevent scroll jump
+            if (document.activeElement && this.container.contains(document.activeElement)) {
+                document.activeElement.blur();
+            }
+        }
 
         // Update footer buttons
         this.renderFooter();
@@ -1034,6 +1056,13 @@ const osbV3 = {
 
         const grid = this.el('div', { className: 'time-slots' });
 
+        // Step 2 Header (PATCH v2.1.7)
+        if (this.state.selectedDate) {
+            const dateStr = this.formatAPIDateForDisplay(this.state.selectedDate);
+            const header = this.el('div', { className: 'calendar-availability-header' }, `VERFÜGBARE ZEITEN AM ${dateStr}`);
+            slotsContainer.appendChild(header);
+        }
+
         // Get service duration for calculating end time
         const duration = this.state.selectedService?.duration || 60;
 
@@ -1056,6 +1085,26 @@ const osbV3 = {
         }, 100);
     },
 
+    // NEW: Function to navigate between steps (PATCH v2.1.7)
+    goToStep(step) {
+        const stepDiff = step - this.state.step;
+
+        // Validate current step before proceeding to next
+        if (stepDiff > 0 && !this.validateCurrentStep()) {
+            return;
+        }
+
+        // Scroll to top of widget for better UX (PATCH v2.1.7)
+        if (this.container) {
+            this.container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            // FIX v2.1.8: Focus container for accessibility (top of widget)
+            this.container.focus();
+        }
+
+        this.state.step = step;
+        this.renderStep(step);
+    },
+
     selectTime(time) {
         this.state.selectedTime = time;
 
@@ -1076,37 +1125,49 @@ const osbV3 = {
 
         const wrapper = this.el('div', { className: 'waitlist-container' });
 
-        const info = this.el('p', { className: 'waitlist-info' });
-        info.textContent = 'Dieser Tag ist bereits ausgebucht. Du kannst dich auf die Warteliste setzen lassen.';
+        // PATCH v2.1.7: Waitlist Header
+        if (this.state.selectedDate) {
+            const dateStr = this.formatAPIDateForDisplay(this.state.selectedDate);
+            const header = this.el('h5', {
+                className: 'waitlist-header text-center mb-3 font-cormorant fw-bold text-uppercase',
+                style: 'color: #e67e22;' // Matches plan
+            }, `AUSGEBUCHT - WARTELISTE FÜR ${dateStr} VERFÜGBAR`);
+            wrapper.appendChild(header);
+        }
+
+        const info = this.el('p', { className: 'waitlist-info text-center' });
+        // PATCH v2.1.7: Wording
+        info.innerHTML = 'Du kannst dich hier gerne auf die Warteliste eintragen. Gib dazu einfach den gewünschten Zeitraum an. Sobald hier ein Termin an diesem Tag frei wird, kontaktiere ich dich.';
         wrapper.appendChild(info);
 
-        const rangeRow = this.el('div', { className: 'waitlist-time-range' });
+        const rangeRow = this.el('div', { className: 'waitlist-time-range justify-content-center' }); // Side-by-side with flex
 
         // From select
-        const fromLabel = this.el('label', {}, this.getLabel('time_range_from'));
-        rangeRow.appendChild(fromLabel);
-
+        const fromGroup = this.el('div', { className: 'd-flex flex-column me-2' });
+        fromGroup.appendChild(this.el('label', { className: 'small mb-1' }, this.getLabel('time_range_from')));
         const fromSelect = this.el('select', { name: 'waitTimeFrom', className: 'form-select' });
         this.generateTimeOptions(fromSelect, this.state.waitTimeFrom);
-        rangeRow.appendChild(fromSelect);
+        fromGroup.appendChild(fromSelect);
+        rangeRow.appendChild(fromGroup);
 
         // To select
-        const toLabel = this.el('label', {}, this.getLabel('time_range_to'));
-        rangeRow.appendChild(toLabel);
-
+        const toGroup = this.el('div', { className: 'd-flex flex-column' });
+        toGroup.appendChild(this.el('label', { className: 'small mb-1' }, this.getLabel('time_range_to')));
         const toSelect = this.el('select', { name: 'waitTimeTo', className: 'form-select' });
         this.generateTimeOptions(toSelect, this.state.waitTimeTo);
-        rangeRow.appendChild(toSelect);
+        toGroup.appendChild(toSelect);
+        rangeRow.appendChild(toGroup);
+
+        // Event Listeners for Validation (PATCH v2.1.7)
+        const updateState = () => {
+            this.state.waitTimeFrom = fromSelect.value;
+            this.state.waitTimeTo = toSelect.value;
+            this.renderFooter(); // Enable 'Weiter' button
+        };
+        fromSelect.addEventListener('change', updateState);
+        toSelect.addEventListener('change', updateState);
 
         wrapper.appendChild(rangeRow);
-
-        // Join button
-        const btn = this.el('button', {
-            className: 'btn btn-nav btn-primary-os mt-3',
-            'data-action': 'join-waitlist',
-        }, this.getLabel('join_waitlist'));
-        wrapper.appendChild(btn);
-
         slotsContainer.appendChild(wrapper);
     },
 
@@ -1384,6 +1445,7 @@ const osbV3 = {
         // Icon
         const iconContainer = this.el('div', { className: 'text-center mb-4' });
         const iconWrapper = this.el('div', { className: 'success-icon' });
+        if (isWaitlist) iconWrapper.classList.add('waitlist'); // PATCH v2.1.7: Target orange color
         iconWrapper.innerHTML = isWaitlist ? this.icons.waitlist : this.icons.success;
         iconContainer.appendChild(iconWrapper);
         container.appendChild(iconContainer);
