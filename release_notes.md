@@ -1,5 +1,9 @@
 # Release Notes
 
+## [v2.2.5] - 2025-12-26
+### Added
+- **AGB Toggle:** Added admin setting to show/hide the "Terms & Conditions" notice in the footer.
+
 ## [2.2.4] - 2025-12-26
 ### Fixed
 - **Mobile:** Replaced Bootstrap utility classes (`d-flex`) with bespoke CSS layout to fix persistent mobile stacking issues.

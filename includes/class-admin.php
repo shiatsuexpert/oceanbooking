@@ -958,6 +958,16 @@ class Ocean_Shiatsu_Booking_Admin {
 						</td>
 					</tr>
 					<tr valign="top">
+						<th scope="row">Footer AGB Notice</th>
+						<td>
+							<?php $show_agb = $this->get_setting( 'osb_show_agb_footer' ); ?>
+							<label>
+								<input type="checkbox" name="osb_show_agb_footer" value="1" <?php checked( $show_agb !== '0' ); ?>> 
+								Show "Terms & Conditions" check/text in footer
+							</label>
+						</td>
+					</tr>
+					<tr valign="top">
 						<th scope="row">Booking Page</th>
 						<td>
 							<?php
@@ -1224,6 +1234,9 @@ class Ocean_Shiatsu_Booking_Admin {
 		if ( isset( $_POST['osb_frontend_version'] ) ) {
 			$this->update_setting( 'osb_frontend_version', sanitize_text_field( $_POST['osb_frontend_version'] ) );
 		}
+
+		// AGB Footer Toggle (v2.2.5)
+		$this->update_setting( 'osb_show_agb_footer', isset( $_POST['osb_show_agb_footer'] ) ? '1' : '0' );
 
 		// Auto Confirm
 		$this->update_setting( 'osb_auto_confirm_bookings', isset( $_POST['osb_auto_confirm_bookings'] ) ? '1' : '0' );

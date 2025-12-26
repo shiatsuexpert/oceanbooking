@@ -51,6 +51,7 @@ class Ocean_Shiatsu_Booking_Public {
 				'language'       => Ocean_Shiatsu_Booking_i18n::get_current_language(),
 				'labels'         => Ocean_Shiatsu_Booking_i18n::get_frontend_labels(),
 				'version'        => OSB_VERSION,
+				'showAgb'        => ( $wpdb->get_var( "SELECT setting_value FROM {$wpdb->prefix}osb_settings WHERE setting_key = 'osb_show_agb_footer'" ) !== '0' ), // Default true
 			) );
 		} else {
 			// V1/V2 compatibility

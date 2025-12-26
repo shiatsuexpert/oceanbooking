@@ -1589,7 +1589,8 @@ const osbV3 = {
         }
 
         // --- AGB Notice (Step 3 only) ---
-        if (step === 3) {
+        // v2.2.5: Conditional Render
+        if (step === 3 && this.state.config.showAgb) {
             // Create a wrapper for AGB + buttons if needed, or just append
             const agbNotice = this.el('div', { className: 'agb-notice-footer w-100 mb-3 text-center small text-muted px-2' }, this.getLabel('agb_notice'));
             // Since footer is flex, we might need to wrap it or adjust flex-direction
