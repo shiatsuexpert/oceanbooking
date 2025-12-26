@@ -592,13 +592,13 @@ const osbV3 = {
 
         if (step === 3) {
             if (!formData.firstName || !formData.lastName || !formData.email || !formData.phone) {
-                alert(this.getLabel('error_required'));
+                this.showError(this.getLabel('error_required'));
                 return false;
             }
             // Email validation
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             if (!emailRegex.test(formData.email)) {
-                alert(this.getLabel('error_email'));
+                this.showError(this.getLabel('error_email'));
                 return false;
             }
         }
@@ -1254,7 +1254,7 @@ const osbV3 = {
 
         // Phone
         const phoneRow = this.el('div', { className: 'col-12 mb-3' });
-        phoneRow.appendChild(this.el('label', { className: 'form-label small text-uppercase text-muted' }, this.getLabel('phone')));
+        phoneRow.appendChild(this.el('label', { className: 'form-label small text-uppercase text-muted' }, this.getLabel('phone') + ' *'));
         const phoneInput = this.el('input', {
             type: 'tel',
             name: 'phone',

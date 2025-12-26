@@ -1,5 +1,10 @@
 # Release Notes
 
+## [2.1.6] - 2025-12-26
+### Fixed
+- **Phone field asterisk missing:** Added asterisk (*) to phone label since it's a required field
+- **Form validation errors invisible:** Replaced browser `alert()` with inline `showError()` for Step 3 validation
+
 ## [2.1.5] - 2025-12-26
 ### Added
 - **Frontend Parity V3:** Full alignment with approved prototype.
