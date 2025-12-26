@@ -373,6 +373,17 @@
     color: white;
 }
 
+/* Slot Check Overlay (Validation Success) */
+.booking-widget .slot-check-overlay {
+    pointer-events: none;
+}
+
+.booking-widget .slot-check-overlay svg {
+    width: 24px;
+    height: 24px;
+    animation: osbFadeIn 0.3s ease-in-out;
+}
+
 /* --- Waitlist Container (NEW) --- */
 .booking-widget .waitlist-container {
     background-color: #fff8f0;
@@ -533,6 +544,31 @@
     border-bottom: none;
     margin-bottom: 0;
     padding-bottom: 0;
+}
+
+/* --- Step 4: Success Icon Utility (Parity) --- */
+.booking-widget .success-icon {
+    font-size: 4rem;
+    color: var(--os-green);
+    display: block;
+    margin: 0 auto 1.5rem;
+}
+
+.booking-widget .success-icon svg {
+    width: 4rem;
+    height: 4rem;
+}
+
+/* Waitlist Header Color (Orange) */
+.booking-widget .waitlist-header {
+    color: #fd7e14 !important;
+}
+
+/* AGB Notice in Footer (Step 3) */
+.booking-widget .agb-notice-footer {
+    font-size: 0.75rem;
+    color: #6c757d;
+    line-height: 1.3;
 }
 
 /* --- Loading Overlay --- */

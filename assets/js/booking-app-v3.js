@@ -170,7 +170,7 @@ const osbV3 = {
                     this.goToStep(parseInt(data.step));
                     break;
                 case 'start-over':
-                    this.startOver();
+                    window.location.href = window.location.pathname;
                     break;
             }
         });
@@ -517,19 +517,47 @@ const osbV3 = {
             const isValid = Array.isArray(slots) && slots.includes(time);
 
             if (isValid) {
+                // Show success overlay on the selected slot for 1000ms
+                const selectedSlotEl = this.container.querySelector('.time-slot.selected');
+                if (selectedSlotEl) {
+                    // Add check overlay
+                    const overlay = document.createElement('span');
+                    overlay.className = 'slot-check-overlay';
+                    overlay.innerHTML = this.icons.success;
+                    overlay.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:var(--os-green);';
+                    selectedSlotEl.style.position = 'relative';
+                    selectedSlotEl.appendChild(overlay);
+                }
+                // Wait 1000ms then proceed
+                await new Promise(resolve => setTimeout(resolve, 1000));
                 this.goToStep(3);
             } else {
-                // Slot was taken - show inline error
+                // Slot was taken - hide the selected slot visually
+                const selectedSlotEl = this.container.querySelector('.time-slot.selected');
+                if (selectedSlotEl) {
+                    selectedSlotEl.style.display = 'none';
+                }
+
+                // Format date for display
+                const dateFormatted = this.formatAPIDateForDisplay(date);
+
+                // Show specific error with date/time
                 const slotsContainer = this.container.querySelector('#timeSlotsContainer');
                 this.showError(
-                    this.getLabel('error_slot_taken') || 'Dieser Termin wurde gerade vergeben. Die Ansicht wurde aktualisiert.',
+                    `Dieser Termin (${dateFormatted} ${time}) ist leider nicht mehr verfügbar. Bitte wähle einen anderen.`,
                     slotsContainer
                 );
-                // Refresh availability
+
+                // Scroll error into view
+                const errorAlert = this.container.querySelector('.osb-error-alert');
+                if (errorAlert) {
+                    errorAlert.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+
+                // Reset selection and refresh
+                this.state.selectedTime = null;
                 const currentMonth = this.state.currentMonth;
                 await this.fetchMonthlyAvailability(currentMonth.getFullYear(), currentMonth.getMonth() + 1, false);
-                this.state.selectedTime = null;
-                this.renderTimeSlots();
             }
         } catch (err) {
             console.error('OSB V3: Slot validation failed', err);
@@ -658,7 +686,8 @@ const osbV3 = {
             info.appendChild(nameEl);
 
             if (service.description) {
-                const desc = this.el('p', { className: 'service-desc mb-0' }, service.description);
+                const desc = this.el('p', { className: 'service-desc mb-0' });
+                desc.innerHTML = service.description; // Allow HTML (sanitized by wp_kses_post on backend)
                 info.appendChild(desc);
             }
 
@@ -1350,53 +1379,45 @@ const osbV3 = {
 
     // --- Step 4: Confirmation ---
     renderStep4Confirmation(container) {
-        const summary = this.state.bookingSummary;
+        const isWaitlist = this.state.isWaitlist;
 
-        const title = this.el('h3', { className: 'text-center mb-4' }, this.getLabel('confirmation_title'));
+        // Icon
+        const iconContainer = this.el('div', { className: 'text-center mb-4' });
+        const iconWrapper = this.el('div', { className: 'success-icon' });
+        iconWrapper.innerHTML = isWaitlist ? this.icons.waitlist : this.icons.success;
+        iconContainer.appendChild(iconWrapper);
+        container.appendChild(iconContainer);
+
+        // Title
+        const titleText = isWaitlist ? this.getLabel('waitlist_confirmation') : this.getLabel('confirmation_title');
+        const title = this.el('h3', { className: 'text-center mb-3' }, titleText);
         container.appendChild(title);
 
-        const msg = this.el('p', { className: 'text-center mb-4' });
-        if (this.state.isWaitlist) {
-            msg.textContent = this.getLabel('waitlist_confirmation');
-        } else {
-            msg.textContent = this.getLabel('confirmation_message');
-        }
-        container.appendChild(msg);
-
-        // Summary card
-        const card = this.el('div', { className: 'summary-card' });
-
-        const addRow = (label, value) => {
-            const row = this.el('div', { className: 'summary-row' });
-            row.appendChild(this.el('span', {}, label));
-            row.appendChild(this.el('span', { className: 'fw-medium' }, value));
-            card.appendChild(row);
-        };
-
-        addRow('Behandlung', this.state.selectedService?.name || '');
-        addRow('Datum', this.formatAPIDateForDisplay(this.state.selectedDate));
-
-        if (this.state.isWaitlist) {
-            addRow('Zeitraum', `${this.state.waitTimeFrom} - ${this.state.waitTimeTo}`);
-        } else {
-            addRow('Zeit', this.state.selectedTime);
+        // Lead Message
+        if (!isWaitlist) {
+            const lead = this.el('p', { className: 'text-center lead mb-4' }, this.getLabel('confirmation_message'));
+            container.appendChild(lead);
         }
 
-        addRow('Name', `${this.state.formData.firstName} ${this.state.formData.lastName}`);
-        addRow('E-Mail', this.state.formData.email);
+        // Subtext
+        const subtextKey = isWaitlist ? 'waitlist_success_subtext' : 'confirmation_subtext';
+        const subtext = this.el('p', { className: 'text-center text-muted small px-4' }, this.getLabel(subtextKey));
+        container.appendChild(subtext);
 
-        if (this.state.formData.phone) {
-            addRow('Telefon', this.state.formData.phone);
-        }
-
-        container.appendChild(card);
-
-        // FIX: Add "Start Over" button
-        const newBookingBtn = this.el('button', {
-            className: 'btn btn-nav btn-outline-os mt-4 d-block mx-auto',
+        // Action Button
+        const btnText = this.getLabel('btn_new_booking');
+        const btn = this.el('button', {
+            className: 'btn btn-nav btn-outline-os mt-5 d-block mx-auto',
             'data-action': 'start-over',
-        }, 'Neuen Termin buchen');
-        container.appendChild(newBookingBtn);
+        }, btnText);
+
+        // Override start-over action logic locally or via handler
+        // But the plan says: "Modify start-over action to perform a window.location.href..."
+        // I will update the event listener for 'start-over' later, or just do it here.
+        // Actually, it's cleaner to handle it in the event listener. 
+        // But the plan says "Modify start-over action TO PERFORM...". 
+        // I'll check the setupEventListeners.
+        container.appendChild(btn);
     },
 
     renderFooter() {
@@ -1404,8 +1425,28 @@ const osbV3 = {
         if (!footer) return;
 
         footer.innerHTML = '';
-
         const { step } = this.state;
+
+        // Hide completely on Step 4
+        if (step === 4) {
+            footer.style.display = 'none';
+            return;
+        } else {
+            footer.style.display = 'flex';
+        }
+
+        // --- AGB Notice (Step 3 only) ---
+        if (step === 3) {
+            // Create a wrapper for AGB + buttons if needed, or just append
+            const agbNotice = this.el('div', { className: 'agb-notice-footer w-100 mb-3 text-center small text-muted px-2' }, this.getLabel('agb_notice'));
+            // Since footer is flex, we might need to wrap it or adjust flex-direction
+            footer.style.flexDirection = 'column';
+            footer.appendChild(agbNotice);
+        } else {
+            footer.style.flexDirection = 'row';
+        }
+
+        const btnRow = this.el('div', { className: 'd-flex justify-content-between align-items-center w-100' });
 
         // Back button (steps 2-3)
         if (step > 1 && step < 4) {
@@ -1413,9 +1454,9 @@ const osbV3 = {
                 className: 'btn btn-nav btn-outline-os',
                 'data-action': 'prev-step',
             }, this.getLabel('btn_back'));
-            footer.appendChild(backBtn);
+            btnRow.appendChild(backBtn);
         } else {
-            footer.appendChild(this.el('div')); // Spacer
+            btnRow.appendChild(this.el('div')); // Spacer
         }
 
         // Next/Submit button
@@ -1426,7 +1467,7 @@ const osbV3 = {
             }, this.getLabel('btn_next'));
 
             if (!this.state.selectedService) nextBtn.disabled = true;
-            footer.appendChild(nextBtn);
+            btnRow.appendChild(nextBtn);
         } else if (step === 2) {
             const nextBtn = this.el('button', {
                 className: 'btn btn-nav btn-primary-os',
@@ -1436,16 +1477,16 @@ const osbV3 = {
                 (this.state.waitTimeFrom && this.state.waitTimeTo) :
                 (this.state.selectedDate && this.state.selectedTime);
             if (!canProceed) nextBtn.disabled = true;
-            footer.appendChild(nextBtn);
+            btnRow.appendChild(nextBtn);
         } else if (step === 3) {
             const submitBtn = this.el('button', {
                 className: 'btn btn-nav btn-primary-os',
                 'data-action': 'submit-booking',
             }, this.state.isWaitlist ? this.getLabel('btn_submit_waitlist') : this.getLabel('btn_submit'));
-            footer.appendChild(submitBtn);
-        } else if (step === 4) {
-            // No button on confirmation, or "New Booking" button
+            btnRow.appendChild(submitBtn);
         }
+
+        footer.appendChild(btnRow);
     },
 
     // ========================================
@@ -1454,7 +1495,19 @@ const osbV3 = {
     async submitBooking() {
         if (!this.validateCurrentStep()) return;
 
+        // Go to Step 4 IMMEDIATELY to show spinner only (per prototype)
+        this.state.step = 4;
+        this.updateProgressIndicators();
+        const contentArea = this.container.querySelector('.step-content-area');
+        if (contentArea) {
+            contentArea.innerHTML = '';
+            // Show only the spinner (no text)
+        }
         this.showLoading();
+
+        // Hide footer on Step 4
+        const footer = this.container.querySelector('.booking-footer');
+        if (footer) footer.style.display = 'none';
 
         const { state } = this;
         const payload = {
@@ -1495,8 +1548,8 @@ const osbV3 = {
             if (!response.ok) {
                 // Handle 409 Conflict (slot taken)
                 if (response.status === 409) {
-                    alert(this.getLabel('error_slot_taken'));
-                    this.goToStep(2);
+                    this.goToStep(3);
+                    this.showError(this.getLabel('error_slot_taken'));
                     return;
                 }
                 throw new Error(data.message || 'Booking failed');
@@ -1505,16 +1558,19 @@ const osbV3 = {
             // Success
             state.bookingSummary = data;
 
-            // FIX: Save user data to localStorage for returning users
+            // Save user data to localStorage for returning users
             this.saveUserData();
 
-            this.goToStep(4);
+            // Render the success screen (Step 4 content)
+            this.hideLoading();
+            this.renderStep4Confirmation(contentArea);
 
         } catch (err) {
             console.error('OSB V3: Booking error', err);
-            alert('Ein Fehler ist aufgetreten. Bitte versuche es erneut.');
-        } finally {
+            // Return to Step 3 and show error alert (no browser alert)
             this.hideLoading();
+            this.goToStep(3);
+            this.showError('Ein Fehler ist aufgetreten. Bitte versuche es erneut.');
         }
     },
 

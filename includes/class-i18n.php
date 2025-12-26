@@ -36,19 +36,19 @@ class Ocean_Shiatsu_Booking_i18n {
 		pll_register_string( 'step_confirmation', 'Bestätigung', $context );
 
 		// Service selection
-		pll_register_string( 'select_service_title', 'Wähle Deine Behandlung', $context );
+		pll_register_string( 'select_service_title', 'Leistung wählen', $context );
 		pll_register_string( 'duration_label', 'Dauer', $context );
-		pll_register_string( 'minutes', 'Minuten', $context );
+		pll_register_string( 'minutes', 'Min.', $context );
 
 		// Date/Time selection
-		pll_register_string( 'select_date_title', 'Wähle Deinen Wunschtermin', $context );
+		pll_register_string( 'select_date_title', 'Termin wählen', $context );
 		pll_register_string( 'available', 'Verfügbar', $context );
 		pll_register_string( 'fully_booked', 'Ausgebucht', $context );
-		pll_register_string( 'waitlist', 'Warteliste', $context );
-		pll_register_string( 'select_time', 'Zeit auswählen', $context );
+		pll_register_string( 'waitlist', 'Ausgebucht - Warteliste verfügbar', $context );
+		pll_register_string( 'select_time', 'Verfügbare Zeiten', $context );
 		pll_register_string( 'join_waitlist', 'Auf Warteliste setzen', $context );
-		pll_register_string( 'time_range_from', 'Von', $context );
-		pll_register_string( 'time_range_to', 'Bis', $context );
+		pll_register_string( 'time_range_from', 'Zeitraum von', $context );
+		pll_register_string( 'time_range_to', 'Zeitraum bis', $context );
 
 		// Contact form
 		pll_register_string( 'your_details', 'Deine Daten', $context );
@@ -58,35 +58,47 @@ class Ocean_Shiatsu_Booking_i18n {
 		pll_register_string( 'salutation_none', 'Keine Angabe', $context );
 		pll_register_string( 'first_name', 'Vorname', $context );
 		pll_register_string( 'last_name', 'Nachname', $context );
-		pll_register_string( 'email', 'E-Mail', $context );
-		pll_register_string( 'phone', 'Telefon', $context );
+		pll_register_string( 'email', 'Email Adresse', $context );
+		pll_register_string( 'phone', 'Telefonnummer', $context );
 		pll_register_string( 'notes', 'Anmerkungen', $context );
 		pll_register_string( 'notes_placeholder', 'Gibt es etwas, das ich vorab wissen sollte?', $context );
 
 		// Reminder preference
 		pll_register_string( 'reminder_preference', 'Terminerinnerung', $context );
-		pll_register_string( 'reminder_none', 'Keine Erinnerung', $context );
-		pll_register_string( 'reminder_24h', '24 Stunden vorher', $context );
+		pll_register_string( 'reminder_none', 'Keine', $context );
+		pll_register_string( 'reminder_24h', '24h vorher per Email', $context );
 		pll_register_string( 'reminder_48h', '48 Stunden vorher', $context );
 
 		// Newsletter
-		pll_register_string( 'newsletter_opt_in', 'Ich möchte über Neuigkeiten informiert werden', $context );
+		pll_register_string( 'newsletter_opt_in', 'Dürfen wir dir Angebote per E-Mail zusenden?', $context );
 
 		// Buttons
 		pll_register_string( 'btn_next', 'Weiter', $context );
 		pll_register_string( 'btn_back', 'Zurück', $context );
-		pll_register_string( 'btn_submit', 'Termin anfragen', $context );
-		pll_register_string( 'btn_submit_waitlist', 'Auf Warteliste setzen', $context );
+		pll_register_string( 'btn_submit', 'Terminanfrage senden', $context );
+		pll_register_string( 'btn_submit_waitlist', 'Warteliste eintragen', $context );
+		pll_register_string( 'btn_new_booking', 'Neue Buchung', $context );
+		pll_register_string( 'btn_back_home', 'Zurück zur Startseite', $context );
 
 		// Confirmation
 		pll_register_string( 'confirmation_title', 'Vielen Dank!', $context );
-		pll_register_string( 'confirmation_message', 'Deine Terminanfrage wurde erfolgreich übermittelt.', $context );
-		pll_register_string( 'waitlist_confirmation', 'Du wurdest auf die Warteliste gesetzt.', $context );
+		pll_register_string( 'confirmation_message', 'Deine Terminanfrage wurde erfolgreich gesendet.', $context );
+		pll_register_string( 'confirmation_subtext', 'Du erhältst in Kürze eine Bestätigung per E-Mail (bitte prüfe auch deinen Spam-Ordner).', $context );
+		pll_register_string( 'waitlist_confirmation', 'Auf Warteliste gesetzt', $context );
+		pll_register_string( 'waitlist_success_subtext', 'Sollte ein Termin im gewünschten Zeitraum frei werden, melden wir uns umgehend bei dir.', $context );
+
+		// Summary Labels
+		pll_register_string( 'summary_label_service', 'Leistung:', $context );
+		pll_register_string( 'summary_label_time', 'Uhrzeit:', $context );
+		pll_register_string( 'summary_label_waitlist', 'Warteliste:', $context );
+
+		// Legal
+		pll_register_string( 'agb_notice', 'Mit dem Klick auf den Button bist du mit den AGB und Datenschutzbestimmungen einverstanden.', $context );
 
 		// Errors
-		pll_register_string( 'error_required', 'Bitte fülle alle Pflichtfelder aus.', $context );
+		pll_register_string( 'error_required', 'Bitte füllen Sie alle Pflichtfelder aus.', $context );
 		pll_register_string( 'error_email', 'Bitte gib eine gültige E-Mail-Adresse ein.', $context );
-		pll_register_string( 'error_slot_taken', 'Dieser Termin ist leider nicht mehr verfügbar.', $context );
+		pll_register_string( 'error_slot_taken', 'Dieser Termin ist leider nicht mehr verfügbar. Bitte wähle einen anderen.', $context );
 	}
 
 	/**
@@ -132,19 +144,19 @@ class Ocean_Shiatsu_Booking_i18n {
 			'step_confirmation'    => self::get_string( 'step_confirmation', 'Bestätigung' ),
 			
 			// Service selection
-			'select_service_title' => self::get_string( 'select_service_title', 'Wähle Deine Behandlung' ),
+			'select_service_title' => self::get_string( 'select_service_title', 'Leistung wählen' ),
 			'duration_label'       => self::get_string( 'duration_label', 'Dauer' ),
-			'minutes'              => self::get_string( 'minutes', 'Minuten' ),
+			'minutes'              => self::get_string( 'minutes', 'Min.' ),
 			
 			// Date/Time
-			'select_date_title'    => self::get_string( 'select_date_title', 'Wähle Deinen Wunschtermin' ),
+			'select_date_title'    => self::get_string( 'select_date_title', 'Termin wählen' ),
 			'available'            => self::get_string( 'available', 'Verfügbar' ),
 			'fully_booked'         => self::get_string( 'fully_booked', 'Ausgebucht' ),
-			'waitlist'             => self::get_string( 'waitlist', 'Warteliste' ),
-			'select_time'          => self::get_string( 'select_time', 'Zeit auswählen' ),
+			'waitlist'             => self::get_string( 'waitlist', 'Ausgebucht - Warteliste verfügbar' ),
+			'select_time'          => self::get_string( 'select_time', 'Verfügbare Zeiten' ),
 			'join_waitlist'        => self::get_string( 'join_waitlist', 'Auf Warteliste setzen' ),
-			'time_range_from'      => self::get_string( 'time_range_from', 'Von' ),
-			'time_range_to'        => self::get_string( 'time_range_to', 'Bis' ),
+			'time_range_from'      => self::get_string( 'time_range_from', 'Zeitraum von' ),
+			'time_range_to'        => self::get_string( 'time_range_to', 'Zeitraum bis' ),
 			
 			// Contact form
 			'your_details'         => self::get_string( 'your_details', 'Deine Daten' ),
@@ -154,35 +166,47 @@ class Ocean_Shiatsu_Booking_i18n {
 			'salutation_none'      => self::get_string( 'salutation_none', 'Keine Angabe' ),
 			'first_name'           => self::get_string( 'first_name', 'Vorname' ),
 			'last_name'            => self::get_string( 'last_name', 'Nachname' ),
-			'email'                => self::get_string( 'email', 'E-Mail' ),
-			'phone'                => self::get_string( 'phone', 'Telefon' ),
+			'email'                => self::get_string( 'email', 'Email Adresse' ),
+			'phone'                => self::get_string( 'phone', 'Telefonnummer' ),
 			'notes'                => self::get_string( 'notes', 'Anmerkungen' ),
 			'notes_placeholder'    => self::get_string( 'notes_placeholder', 'Gibt es etwas, das ich vorab wissen sollte?' ),
 			
 			// Reminder
 			'reminder_preference'  => self::get_string( 'reminder_preference', 'Terminerinnerung' ),
-			'reminder_none'        => self::get_string( 'reminder_none', 'Keine Erinnerung' ),
-			'reminder_24h'         => self::get_string( 'reminder_24h', '24 Stunden vorher' ),
+			'reminder_none'        => self::get_string( 'reminder_none', 'Keine' ),
+			'reminder_24h'         => self::get_string( 'reminder_24h', '24h vorher per Email' ),
 			'reminder_48h'         => self::get_string( 'reminder_48h', '48 Stunden vorher' ),
 			
 			// Newsletter
-			'newsletter_opt_in'    => self::get_string( 'newsletter_opt_in', 'Ich möchte über Neuigkeiten informiert werden' ),
+			'newsletter_opt_in'    => self::get_string( 'newsletter_opt_in', 'Dürfen wir dir Angebote per E-Mail zusenden?' ),
 			
 			// Buttons
 			'btn_next'             => self::get_string( 'btn_next', 'Weiter' ),
 			'btn_back'             => self::get_string( 'btn_back', 'Zurück' ),
-			'btn_submit'           => self::get_string( 'btn_submit', 'Termin anfragen' ),
-			'btn_submit_waitlist'  => self::get_string( 'btn_submit_waitlist', 'Auf Warteliste setzen' ),
+			'btn_submit'           => self::get_string( 'btn_submit', 'Terminanfrage senden' ),
+			'btn_submit_waitlist'  => self::get_string( 'btn_submit_waitlist', 'Warteliste eintragen' ),
+			'btn_new_booking'      => self::get_string( 'btn_new_booking', 'Neue Buchung' ),
+			'btn_back_home'        => self::get_string( 'btn_back_home', 'Zurück zur Startseite' ),
 			
 			// Confirmation
 			'confirmation_title'   => self::get_string( 'confirmation_title', 'Vielen Dank!' ),
-			'confirmation_message' => self::get_string( 'confirmation_message', 'Deine Terminanfrage wurde erfolgreich übermittelt.' ),
-			'waitlist_confirmation'=> self::get_string( 'waitlist_confirmation', 'Du wurdest auf die Warteliste gesetzt.' ),
+			'confirmation_message' => self::get_string( 'confirmation_message', 'Deine Terminanfrage wurde erfolgreich gesendet.' ),
+			'confirmation_subtext' => self::get_string( 'confirmation_subtext', 'Du erhältst in Kürze eine Bestätigung per E-Mail (bitte prüfe auch deinen Spam-Ordner).' ),
+			'waitlist_confirmation'=> self::get_string( 'waitlist_confirmation', 'Auf Warteliste gesetzt' ),
+			'waitlist_success_subtext'=> self::get_string( 'waitlist_success_subtext', 'Sollte ein Termin im gewünschten Zeitraum frei werden, melden wir uns umgehend bei dir.' ),
+
+			// Summary Labels
+			'summary_label_service' => self::get_string( 'summary_label_service', 'Leistung:' ),
+			'summary_label_time'    => self::get_string( 'summary_label_time', 'Uhrzeit:' ),
+			'summary_label_waitlist'=> self::get_string( 'summary_label_waitlist', 'Warteliste:' ),
+
+			// Legal
+			'agb_notice'            => self::get_string( 'agb_notice', 'Mit dem Klick auf den Button bist du mit den AGB und Datenschutzbestimmungen einverstanden.' ),
 			
 			// Errors
-			'error_required'       => self::get_string( 'error_required', 'Bitte fülle alle Pflichtfelder aus.' ),
+			'error_required'       => self::get_string( 'error_required', 'Bitte füllen Sie alle Pflichtfelder aus.' ),
 			'error_email'          => self::get_string( 'error_email', 'Bitte gib eine gültige E-Mail-Adresse ein.' ),
-			'error_slot_taken'     => self::get_string( 'error_slot_taken', 'Dieser Termin ist leider nicht mehr verfügbar.' ),
+			'error_slot_taken'     => self::get_string( 'error_slot_taken', 'Dieser Termin ist leider nicht mehr verfügbar. Bitte wähle einen anderen.' ),
 		);
 
 		return $labels;

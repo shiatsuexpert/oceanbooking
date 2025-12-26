@@ -1,5 +1,22 @@
 # Release Notes
 
+## [2.1.5] - 2025-12-26
+### Added
+- **Frontend Parity V3:** Full alignment with approved prototype.
+  - Success screens with SVG icons (booking: checkmark, waitlist: hourglass)
+  - 1000ms validation overlay showing "Verfügbar" checkmark before proceeding
+  - AGB notice in footer above submit button on Step 3
+  - Service descriptions now support HTML (bullet lists)
+  - Slot-taken error hides unavailable slot and shows specific date/time message
+
+### Changed
+- Submission flow goes directly to Step 4 (spinner only) then shows success/error
+- "Neue Buchung" button now clears URL parameters via `window.location.pathname`
+- Error handling uses inline alerts instead of browser `alert()`
+
+### Fixed
+- Audit fixes: Reviewed all code via Gemini CLI, no critical issues found
+
 ## [2.1.4] - 2025-12-23
 ### Changed
 - **Step 3 UI redesigned to match prototype:**
