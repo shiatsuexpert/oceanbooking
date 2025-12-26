@@ -1599,7 +1599,8 @@ const osbV3 = {
             footer.style.flexDirection = 'row';
         }
 
-        const btnRow = this.el('div', { className: 'footer-btn-row d-flex justify-content-between align-items-center w-100' });
+        // v2.2.4: Remove d-flex etc. to allow full CSS control via style-v3.css
+        const btnRow = this.el('div', { className: 'footer-btn-row w-100' });
 
         // Back button (steps 2-3)
         if (step > 1 && step < 4) {

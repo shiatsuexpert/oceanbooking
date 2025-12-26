@@ -1,5 +1,9 @@
 # Release Notes
 
+## [2.2.4] - 2025-12-26
+### Fixed
+- **Mobile:** Replaced Bootstrap utility classes (`d-flex`) with bespoke CSS layout to fix persistent mobile stacking issues.
+
 ## [2.2.3] - 2025-12-26
 ### Fixed
 - **Mobile:** Increased footer stacking breakpoint to 992px (covering tablets/MD devices).

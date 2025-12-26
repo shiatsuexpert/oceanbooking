@@ -558,6 +558,14 @@
     flex-shrink: 0;
 }
 
+/* v2.2.4: Bespoke Footer Button Row Layout (No Bootstrap Dependencies) */
+.booking-widget .footer-btn-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
 /* --- STEP 4: Summary --- */
 .booking-widget .summary-card {
     background-color: #fdfbf7;
