@@ -1,10 +1,21 @@
 # Release Notes
 
+## [2.1.9] - 2025-12-26
+### Audit Remediation (Fail-Safe Styling)
+- **Fixed:** Step 2 Header now uses correct Cormorant font and Teal color via inline styles.
+- **Fixed:** Step 3 Section Icons are now 18px (inline sized to bypass CSS cache).
+- **Fixed:** Step 4 Success/Waitlist Icon is 64px with correct Green/Orange color.
+- **Fixed:** Loading Spinner now scrolls into view for visibility.
+- **Fixed:** Step Indicator forward clicks are blocked (only back/current allowed).
+- **Fixed:** Reminder dropdown text updated to "48h vorher per Email" for consistency.
+- **Fixed:** Calendar month change now clears previous selection and auto-selects within current month only.
+- **Added:** CSS fail-safe rules for step indicator visibility.
+
 ## [2.1.8] - 2025-12-26
 ### Hotfix: Mobile Focus & Auto-Advance
 - **Fixed:** **Mobile Focus Jump:** Widget no longer auto-focuses/scrolls to center on initial load (Step 1). Focus now correctly targets the top of the container only on subsequent steps.
 - **Fixed:** **Auto-Advance:** Step 1 now reliably advances to Step 2 upon selecting a service (bypassed strict validation check that caused intermittent failures).
-- **Fixed:** **Stale Cache:** Version bump ensures all v2.1.7 UI changes (Waitlist Redesign, Header Fixes) are correctly loaded by browsers.
+- **Fixed:** **Stale Cache:** Version bump ensures all v2.1.7 UI changes (Waitlist Redesign) are correctly loaded by browsers.
 
 ## [2.1.7] - 2025-12-26
 ### Frontend V3 Parity Patch

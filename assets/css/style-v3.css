@@ -113,6 +113,13 @@
     background-color: var(--os-green);
 }
 
+/* v2.1.9: Future steps are not clickable (fail-safe CSS) */
+.booking-widget .step-indicator:not(.active):not(.completed) {
+    pointer-events: none;
+    opacity: 0.5;
+    cursor: default;
+}
+
 .booking-widget .step-indicator svg {
     width: 16px;
     height: 16px;

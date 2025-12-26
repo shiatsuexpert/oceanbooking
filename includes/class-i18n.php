@@ -67,7 +67,7 @@ class Ocean_Shiatsu_Booking_i18n {
 		pll_register_string( 'reminder_preference', 'Terminerinnerung', $context );
 		pll_register_string( 'reminder_none', 'Keine', $context );
 		pll_register_string( 'reminder_24h', '24h vorher per Email', $context );
-		pll_register_string( 'reminder_48h', '48 Stunden vorher', $context );
+		pll_register_string( 'reminder_48h', '48h vorher per Email', $context );
 
 		// Newsletter
 		pll_register_string( 'newsletter_opt_in', 'Dürfen wir dir Angebote per E-Mail zusenden?', $context );
@@ -175,7 +175,7 @@ class Ocean_Shiatsu_Booking_i18n {
 			'reminder_preference'  => self::get_string( 'reminder_preference', 'Terminerinnerung' ),
 			'reminder_none'        => self::get_string( 'reminder_none', 'Keine' ),
 			'reminder_24h'         => self::get_string( 'reminder_24h', '24h vorher per Email' ),
-			'reminder_48h'         => self::get_string( 'reminder_48h', '48 Stunden vorher' ),
+			'reminder_48h'         => self::get_string( 'reminder_48h', '48h vorher per Email' ),
 			
 			// Newsletter
 			'newsletter_opt_in'    => self::get_string( 'newsletter_opt_in', 'Dürfen wir dir Angebote per E-Mail zusenden?' ),

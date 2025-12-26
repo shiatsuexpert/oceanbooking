@@ -167,7 +167,12 @@ const osbV3 = {
                     this.submitBooking();
                     break;
                 case 'go-to-step':
-                    this.goToStep(parseInt(data.step));
+                    // v2.1.9: Block forward navigation (only allow back/current)
+                    const targetStep = parseInt(data.step);
+                    if (targetStep > this.state.step) {
+                        return; // Silently block forward clicks
+                    }
+                    this.goToStep(targetStep);
                     break;
                 case 'start-over':
                     window.location.href = window.location.pathname;
@@ -298,6 +303,10 @@ const osbV3 = {
         this.state.loading = true;
         const overlay = this.container.querySelector('.loading-overlay');
         if (overlay) overlay.classList.remove('hidden');
+        // v2.1.9: Scroll to show spinner
+        if (this.container) {
+            this.container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
     },
 
     hideLoading() {
@@ -672,8 +681,16 @@ const osbV3 = {
 
             if (stepNum === this.state.step) {
                 ind.classList.add('active');
+                ind.style.pointerEvents = 'auto';
+                ind.style.opacity = '1';
             } else if (stepNum < this.state.step) {
                 ind.classList.add('completed');
+                ind.style.pointerEvents = 'auto';
+                ind.style.opacity = '1';
+            } else {
+                // v2.1.9: Future steps are not clickable
+                ind.style.pointerEvents = 'none';
+                ind.style.opacity = '0.5';
             }
         });
     },
@@ -914,6 +931,8 @@ const osbV3 = {
         // PASS 1: Find first AVAILABLE day (prioritize booking over waitlist)
         for (const dateStr of sortedDates) {
             if (dateStr < tomorrowStr) continue;
+            // v2.1.9: Only consider dates in the CURRENT displayed month
+            if (!this.isDateInCurrentMonth(dateStr)) continue;
             const dayData = this.state.monthlyData[dateStr];
             if (dayData && dayData.status === 'available') {
                 this.selectDate(dateStr, true); // skipScroll=true (UX Fix #1)
@@ -924,6 +943,8 @@ const osbV3 = {
         // PASS 2: No available days - find first BOOKED day (waitlist)
         for (const dateStr of sortedDates) {
             if (dateStr < tomorrowStr) continue;
+            // v2.1.9: Only consider dates in the CURRENT displayed month
+            if (!this.isDateInCurrentMonth(dateStr)) continue;
             const dayData = this.state.monthlyData[dateStr];
             if (dayData && dayData.status === 'booked') {
                 this.selectDate(dateStr, true); // skipScroll=true (UX Fix #1)
@@ -939,6 +960,14 @@ const osbV3 = {
         // If isRetry=true and still nothing, leave empty - user navigates manually
     },
 
+    // v2.1.9: Helper to check if date string belongs to current displayed month
+    isDateInCurrentMonth(dateStr) {
+        const [year, month] = dateStr.split('-').map(Number);
+        const currentYear = this.state.currentMonth.getFullYear();
+        const currentMonth = this.state.currentMonth.getMonth() + 1; // JS months are 0-indexed
+        return year === currentYear && month === currentMonth;
+    },
+
     // NEW: Navigate to next month with optional auto-select
     navigateToNextMonth(autoSelectAfter = false) {
         const next = new Date(this.state.currentMonth);
@@ -951,6 +980,12 @@ const osbV3 = {
         const date = this.state.currentMonth;
         date.setMonth(date.getMonth() + delta);
         this.state.currentMonth = new Date(date);
+
+        // v2.1.9: Clear selection when changing months to avoid stale data
+        this.state.selectedDate = null;
+        this.state.daySlots = [];
+        this.renderTimeSlots(); // Clear the "Available Times" area immediately
+
         this.renderCalendarGrid();
         this.fetchMonthlyAvailability(date.getFullYear(), date.getMonth() + 1);
     },
@@ -1056,10 +1091,12 @@ const osbV3 = {
 
         const grid = this.el('div', { className: 'time-slots' });
 
-        // Step 2 Header (PATCH v2.1.7)
+        // Step 2 Header (PATCH v2.1.7, v2.1.9 Fail-Safe Inline Styles)
         if (this.state.selectedDate) {
             const dateStr = this.formatAPIDateForDisplay(this.state.selectedDate);
             const header = this.el('div', { className: 'calendar-availability-header' }, `VERFÜGBARE ZEITEN AM ${dateStr}`);
+            // FAIL-SAFE: Inline styles to bypass CSS cache
+            header.style.cssText = "font-family: 'Cormorant', serif; text-transform: uppercase; letter-spacing: 0.15em; color: #577166; margin-bottom: 1.5rem; font-size: 1rem; font-weight: 400;";
             slotsContainer.appendChild(header);
         }
 
@@ -1249,7 +1286,17 @@ const osbV3 = {
         // --- SECTION 1: Personal Details (Persönliche Angaben) ---
         const personalCard = this.el('div', { className: 'form-section-card' });
         const personalTitle = this.el('div', { className: 'form-section-title' });
-        personalTitle.innerHTML = `${this.icons.user} Persönliche Angaben`;
+        // v2.1.9: Create icon with inline sizing fail-safe
+        const userIconSpan = document.createElement('span');
+        userIconSpan.innerHTML = this.icons.user;
+        const userSvg = userIconSpan.querySelector('svg');
+        if (userSvg) {
+            userSvg.setAttribute('width', '18');
+            userSvg.setAttribute('height', '18');
+            userSvg.style.cssText = 'width:18px;height:18px;margin-right:0.5rem;vertical-align:middle;';
+        }
+        personalTitle.appendChild(userIconSpan);
+        personalTitle.appendChild(document.createTextNode(' Persönliche Angaben'));
         personalCard.appendChild(personalTitle);
 
         // Salutation
@@ -1331,7 +1378,17 @@ const osbV3 = {
         // --- SECTION 2: Details & Wishes ---
         const detailsCard = this.el('div', { className: 'form-section-card' });
         const detailsTitle = this.el('div', { className: 'form-section-title' });
-        detailsTitle.innerHTML = `${this.icons.comment} Details & Wünsche`;
+        // v2.1.9: Create icon with inline sizing fail-safe
+        const commentIconSpan = document.createElement('span');
+        commentIconSpan.innerHTML = this.icons.comment;
+        const commentSvg = commentIconSpan.querySelector('svg');
+        if (commentSvg) {
+            commentSvg.setAttribute('width', '18');
+            commentSvg.setAttribute('height', '18');
+            commentSvg.style.cssText = 'width:18px;height:18px;margin-right:0.5rem;vertical-align:middle;';
+        }
+        detailsTitle.appendChild(commentIconSpan);
+        detailsTitle.appendChild(document.createTextNode(' Details & Wünsche'));
         detailsCard.appendChild(detailsTitle);
 
         // Reminder preference
@@ -1447,6 +1504,20 @@ const osbV3 = {
         const iconWrapper = this.el('div', { className: 'success-icon' });
         if (isWaitlist) iconWrapper.classList.add('waitlist'); // PATCH v2.1.7: Target orange color
         iconWrapper.innerHTML = isWaitlist ? this.icons.waitlist : this.icons.success;
+
+        // v2.1.9: Apply inline size and color to SVG (fail-safe)
+        const svg = iconWrapper.querySelector('svg');
+        if (svg) {
+            svg.setAttribute('width', '64');
+            svg.setAttribute('height', '64');
+            svg.style.width = '64px';
+            svg.style.height = '64px';
+            // Apply correct fill color
+            const fillColor = isWaitlist ? '#e67e22' : '#4e7f72';
+            svg.style.fill = fillColor;
+            svg.querySelectorAll('path').forEach(p => p.style.fill = fillColor);
+        }
+
         iconContainer.appendChild(iconWrapper);
         container.appendChild(iconContainer);
 
@@ -1476,8 +1547,8 @@ const osbV3 = {
         // Override start-over action logic locally or via handler
         // But the plan says: "Modify start-over action to perform a window.location.href..."
         // I will update the event listener for 'start-over' later, or just do it here.
-        // Actually, it's cleaner to handle it in the event listener. 
-        // But the plan says "Modify start-over action TO PERFORM...". 
+        // Actually, it's cleaner to handle it in the event listener.
+        // But the plan says "Modify start-over action TO PERFORM...".
         // I'll check the setupEventListeners.
         container.appendChild(btn);
     },
