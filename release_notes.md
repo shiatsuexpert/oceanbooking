@@ -1,5 +1,9 @@
 # Release Notes
 
+## [2.2.2] - 2025-12-26
+### Fixed
+- **Visual:** Fixed massive size of Info icon in Summary card (Step 3).
+
 ## [2.2.1] - 2025-12-26
 ### Hotfix
 - **Version Bump:** Forced version update to trigger plugin update mechanism.

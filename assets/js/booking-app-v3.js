@@ -1465,7 +1465,17 @@ const osbV3 = {
         // --- SECTION 3: Booking Summary (at BOTTOM per prototype) ---
         const summaryCard = this.el('div', { className: 'form-section-card', style: 'background-color: #fdfbf7;' });
         const summaryTitle = this.el('div', { className: 'form-section-title' });
-        summaryTitle.innerHTML = `${this.icons.info} Deine Buchung`;
+        // v2.2.2: FIX massive icon size by applying inline constraints
+        const infoIconSpan = document.createElement('span');
+        infoIconSpan.innerHTML = this.icons.info;
+        const infoSvg = infoIconSpan.querySelector('svg');
+        if (infoSvg) {
+            infoSvg.setAttribute('width', '18');
+            infoSvg.setAttribute('height', '18');
+            infoSvg.style.cssText = 'width:18px;height:18px;margin-right:0.5rem;vertical-align:middle;';
+        }
+        summaryTitle.appendChild(infoIconSpan);
+        summaryTitle.appendChild(document.createTextNode(' Deine Buchung'));
         summaryCard.appendChild(summaryTitle);
 
         const addSummaryRow = (label, value, extraClass = '') => {
