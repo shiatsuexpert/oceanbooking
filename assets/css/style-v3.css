@@ -696,11 +696,12 @@
         gap: 15px;
     }
 
-    /* v2.2.0: Stack Footer Buttons on Mobile (<768px MD) */
+    /* v2.2.3: Stack Footer Buttons on Mobile & Tablet (<992px LG breakpoint) */
     .booking-widget .footer-btn-row {
         flex-direction: column-reverse !important;
         /* Next on top, Back on bottom */
-        gap: 10px;
+        gap: 15px !important;
+        display: flex !important;
     }
 
     .booking-widget .footer-btn-row .btn {
@@ -715,6 +716,23 @@
 
     .booking-widget .form-section-card {
         padding: 20px 15px;
+    }
+
+    .booking-widget .form-section-card {
+        padding: 20px 15px;
+    }
+}
+
+/* Fallback: Ensure 768px to 992px is also covered if media query above was too restrictive */
+@media (max-width: 991.98px) {
+    .booking-widget .footer-btn-row {
+        flex-direction: column-reverse !important;
+        gap: 10px;
+    }
+
+    .booking-widget .footer-btn-row .btn {
+        width: 100% !important;
+        margin: 0 0 10px 0 !important;
     }
 }
 

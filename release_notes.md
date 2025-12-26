@@ -1,5 +1,9 @@
 # Release Notes
 
+## [2.2.3] - 2025-12-26
+### Fixed
+- **Mobile:** Increased footer stacking breakpoint to 992px (covering tablets/MD devices).
+
 ## [2.2.2] - 2025-12-26
 ### Fixed
 - **Visual:** Fixed massive size of Info icon in Summary card (Step 3).
