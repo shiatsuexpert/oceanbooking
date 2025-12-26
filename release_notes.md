@@ -1,5 +1,9 @@
 # Release Notes
 
+## [2.2.1] - 2025-12-26
+### Hotfix
+- **Version Bump:** Forced version update to trigger plugin update mechanism.
+
 ## [2.2.0] - 2025-12-26
 ### Fixed
 - **Visual Polish:** Fixed issue where progress line was visible through future step indicators (removed opacity).
