@@ -704,12 +704,12 @@
         gap: 15px;
     }
 
-    /* v2.2.3: Stack Footer Buttons on Mobile & Tablet (<992px LG breakpoint) */
+    /* v2.2.4: Stack Footer Buttons on Mobile & Tablet (<992px LG breakpoint) */
     .booking-widget .footer-btn-row {
         flex-direction: column-reverse !important;
         /* Next on top, Back on bottom */
         gap: 15px !important;
-        display: flex !important;
+        /* v2.2.4: Flex display defined in main rule to be specificity-proof */
     }
 
     .booking-widget .footer-btn-row .btn {
