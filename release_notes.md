@@ -1,5 +1,13 @@
 # Release Notes
 
+## [2.2.0] - 2025-12-26
+### Fixed
+- **Visual Polish:** Fixed issue where progress line was visible through future step indicators (removed opacity).
+- **Date Display:** Fixed styling issue where date header appeared with a grey box due to theme interference (isolated in span).
+- **UX:** Added auto-scroll to error messages to ensure visibility.
+- **Mobile:** Fixed footer buttons not stacking correctly on mobile (<768px).
+- **Logic:** Fixed bug where loading spinner persisted indefinitely when a slot conflict (409) occurred.
+
 ## [2.1.9] - 2025-12-26
 ### Audit Remediation (Fail-Safe Styling)
 - **Fixed:** Step 2 Header now uses correct Cormorant font and Teal color via inline styles.

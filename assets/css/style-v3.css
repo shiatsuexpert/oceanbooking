@@ -116,8 +116,8 @@
 /* v2.1.9: Future steps are not clickable (fail-safe CSS) */
 .booking-widget .step-indicator:not(.active):not(.completed) {
     pointer-events: none;
-    opacity: 0.5;
     cursor: default;
+    /* v2.2.0: Removed opacity to fix masking bug */
 }
 
 .booking-widget .step-indicator svg {
@@ -693,8 +693,19 @@
 
     .booking-widget .booking-footer {
         flex-direction: column-reverse !important;
-        /* PATCH v2.1.7: Force stacking */
         gap: 15px;
+    }
+
+    /* v2.2.0: Stack Footer Buttons on Mobile (<768px MD) */
+    .booking-widget .footer-btn-row {
+        flex-direction: column-reverse !important;
+        /* Next on top, Back on bottom */
+        gap: 10px;
+    }
+
+    .booking-widget .footer-btn-row .btn {
+        width: 100% !important;
+        margin: 0 !important;
     }
 
     .booking-widget .booking-footer .btn-nav {

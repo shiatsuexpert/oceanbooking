@@ -332,6 +332,9 @@ const osbV3 = {
 
         // Insert at top of container
         target.insertBefore(alert, target.firstChild);
+
+        // v2.2.0: Auto-scroll to error so user sees it
+        alert.scrollIntoView({ behavior: 'smooth', block: 'center' });
     },
 
     /**
@@ -682,15 +685,13 @@ const osbV3 = {
             if (stepNum === this.state.step) {
                 ind.classList.add('active');
                 ind.style.pointerEvents = 'auto';
-                ind.style.opacity = '1';
+                // v2.2.0: Opacity control moved to CSS (removed manual override to fix masking)
             } else if (stepNum < this.state.step) {
                 ind.classList.add('completed');
                 ind.style.pointerEvents = 'auto';
-                ind.style.opacity = '1';
             } else {
                 // v2.1.9: Future steps are not clickable
                 ind.style.pointerEvents = 'none';
-                ind.style.opacity = '0.5';
             }
         });
     },
@@ -1091,12 +1092,21 @@ const osbV3 = {
 
         const grid = this.el('div', { className: 'time-slots' });
 
-        // Step 2 Header (PATCH v2.1.7, v2.1.9 Fail-Safe Inline Styles)
+        // Step 2 Header (PATCH v2.1.7, v2.1.9 Fail-Safe Inline Styles, v2.2.0 Date Style Fix)
         if (this.state.selectedDate) {
             const dateStr = this.formatAPIDateForDisplay(this.state.selectedDate);
-            const header = this.el('div', { className: 'calendar-availability-header' }, `VERFÜGBARE ZEITEN AM ${dateStr}`);
+            const header = this.el('div', { className: 'calendar-availability-header' });
             // FAIL-SAFE: Inline styles to bypass CSS cache
             header.style.cssText = "font-family: 'Cormorant', serif; text-transform: uppercase; letter-spacing: 0.15em; color: #577166; margin-bottom: 1.5rem; font-size: 1rem; font-weight: 400;";
+
+            // v2.2.0: Split text and date to isolate date from theme interference
+            header.appendChild(document.createTextNode('VERFÜGBARE ZEITEN AM '));
+
+            const dateSpan = this.el('span', {}, dateStr);
+            // FORCE reset all properties to ensure it inherits from parent and kills any theme background/block styling
+            dateSpan.style.cssText = "background: none !important; background-color: transparent !important; color: inherit !important; font-family: inherit !important; font-size: inherit !important; padding: 0 !important; margin: 0 !important; border: 0 !important; display: inline !important; box-shadow: none !important;";
+            header.appendChild(dateSpan);
+
             slotsContainer.appendChild(header);
         }
 
@@ -1579,7 +1589,7 @@ const osbV3 = {
             footer.style.flexDirection = 'row';
         }
 
-        const btnRow = this.el('div', { className: 'd-flex justify-content-between align-items-center w-100' });
+        const btnRow = this.el('div', { className: 'footer-btn-row d-flex justify-content-between align-items-center w-100' });
 
         // Back button (steps 2-3)
         if (step > 1 && step < 4) {
@@ -1681,6 +1691,8 @@ const osbV3 = {
             if (!response.ok) {
                 // Handle 409 Conflict (slot taken)
                 if (response.status === 409) {
+                    // v2.2.0: Ensure spinner is hidden before showing error
+                    this.hideLoading();
                     this.goToStep(3);
                     this.showError(this.getLabel('error_slot_taken'));
                     return;
