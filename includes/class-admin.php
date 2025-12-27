@@ -412,11 +412,16 @@ class Ocean_Shiatsu_Booking_Admin {
 			
 			$data = [
 				'name' => sanitize_text_field( $_POST['name'] ),
+				'name_en' => sanitize_text_field( $_POST['name_en'] ?? '' ),
 				'duration_minutes' => intval( $_POST['duration'] ),
 				'preparation_minutes' => intval( $_POST['preparation'] ),
 				'price' => floatval( $_POST['price'] ),
 				'price_range' => sanitize_text_field( $_POST['price_range'] ?? '' ),
+				'price_range_en' => sanitize_text_field( $_POST['price_range_en'] ?? '' ),
 				'description' => wp_kses_post( $_POST['description'] ),
+				'description_en' => wp_kses_post( $_POST['description_en'] ?? '' ),
+				'email_pricing_text_de' => sanitize_textarea_field( $_POST['email_pricing_text_de'] ?? '' ),
+				'email_pricing_text_en' => sanitize_textarea_field( $_POST['email_pricing_text_en'] ?? '' ),
 				'image_url' => esc_url_raw( $_POST['image_url'] ),
 			];
 
@@ -480,39 +485,86 @@ class Ocean_Shiatsu_Booking_Admin {
 							<input type="hidden" name="service_id" value="<?php echo $edit_service->id; ?>">
 						<?php endif; ?>
 
+						<!-- Language Tabs -->
+					<div style="margin-bottom: 15px;">
+						<button type="button" class="button osb-tab-btn active" data-tab="de">🇩🇪 Deutsch</button>
+						<button type="button" class="button osb-tab-btn" data-tab="en">🇬🇧 English</button>
+					</div>
+
+					<!-- German Fields -->
+					<div class="osb-tab-content" data-tab="de">
 						<p>
-							<label>Name</label>
+							<label>Name (DE) *</label>
 							<input type="text" name="name" value="<?php echo $edit_service ? esc_attr( $edit_service->name ) : ''; ?>" class="widefat" required>
 						</p>
-						<div style="display: flex; gap: 10px;">
-							<p style="flex: 1;">
-								<label>Duration (min)</label>
-								<input type="number" name="duration" value="<?php echo $edit_service ? $edit_service->duration_minutes : '60'; ?>" class="widefat" required>
-							</p>
-							<p style="flex: 1;">
-								<label>Prep (min)</label>
-								<input type="number" name="preparation" value="<?php echo $edit_service ? $edit_service->preparation_minutes : '15'; ?>" class="widefat" required>
-							</p>
-						</div>
 						<p>
-							<label>Price (€)</label>
-							<input type="number" step="0.01" name="price" value="<?php echo $edit_service ? $edit_service->price : ''; ?>" class="widefat" required>
-							<small>Base price (for internal use). Enter 0 for free services.</small>
-						</p>
-						<p>
-							<label>Price Display (Optional)</label>
-							<input type="text" name="price_range" value="<?php echo $edit_service ? esc_attr( $edit_service->price_range ?? '' ) : ''; ?>" class="widefat" placeholder="e.g. € 95-140 or Kostenlos">
-							<small>Displayed to customers. Use for price ranges or custom text (e.g. "€ 95-140").</small>
-						</p>
-						<p>
-							<label>Description</label>
+							<label>Description (DE)</label>
 							<textarea name="description" class="widefat" rows="3"><?php echo $edit_service ? esc_textarea( $edit_service->description ) : ''; ?></textarea>
 						</p>
 						<p>
-							<label>Image URL</label>
-							<input type="url" name="image_url" value="<?php echo $edit_service ? esc_attr( $edit_service->image_url ) : ''; ?>" class="widefat" placeholder="https://...">
-							<small>Paste a link to an image from your Media Library.</small>
+							<label>Price Display (DE)</label>
+							<input type="text" name="price_range" value="<?php echo $edit_service ? esc_attr( $edit_service->price_range ?? '' ) : ''; ?>" class="widefat" placeholder="e.g. € 95-140">
 						</p>
+						<p>
+							<label>Email Payment Info (DE)</label>
+							<textarea name="email_pricing_text_de" class="widefat" rows="2" placeholder="e.g. Bezahlung in Bar oder per Rechnung."><?php echo $edit_service ? esc_textarea( $edit_service->email_pricing_text_de ?? '' ) : ''; ?></textarea>
+							<small>Shown in emails only. Leave empty to hide.</small>
+						</p>
+					</div>
+
+					<!-- English Fields -->
+					<div class="osb-tab-content" data-tab="en" style="display:none;">
+						<p>
+							<label>Name (EN)</label>
+							<input type="text" name="name_en" value="<?php echo $edit_service ? esc_attr( $edit_service->name_en ?? '' ) : ''; ?>" class="widefat" placeholder="English name (optional, falls back to DE)">
+						</p>
+						<p>
+							<label>Description (EN)</label>
+							<textarea name="description_en" class="widefat" rows="3" placeholder="English description"><?php echo $edit_service ? esc_textarea( $edit_service->description_en ?? '' ) : ''; ?></textarea>
+						</p>
+						<p>
+							<label>Price Display (EN)</label>
+							<input type="text" name="price_range_en" value="<?php echo $edit_service ? esc_attr( $edit_service->price_range_en ?? '' ) : ''; ?>" class="widefat" placeholder="e.g. € 95-140">
+						</p>
+						<p>
+							<label>Email Payment Info (EN)</label>
+							<textarea name="email_pricing_text_en" class="widefat" rows="2" placeholder="e.g. Payment in cash or by invoice."><?php echo $edit_service ? esc_textarea( $edit_service->email_pricing_text_en ?? '' ) : ''; ?></textarea>
+							<small>Shown in emails only. Leave empty to hide.</small>
+						</p>
+					</div>
+
+					<!-- Common Fields (Non-translatable) -->
+					<hr style="margin: 15px 0;">
+					<div style="display: flex; gap: 10px;">
+						<p style="flex: 1;">
+							<label>Duration (min)</label>
+							<input type="number" name="duration" value="<?php echo $edit_service ? $edit_service->duration_minutes : '60'; ?>" class="widefat" required>
+						</p>
+						<p style="flex: 1;">
+							<label>Prep (min)</label>
+							<input type="number" name="preparation" value="<?php echo $edit_service ? $edit_service->preparation_minutes : '15'; ?>" class="widefat" required>
+						</p>
+					</div>
+					<p>
+						<label>Price (€)</label>
+						<input type="number" step="0.01" name="price" value="<?php echo $edit_service ? $edit_service->price : ''; ?>" class="widefat" required>
+						<small>Base price (for internal use).</small>
+					</p>
+					<p>
+						<label>Image URL</label>
+						<input type="url" name="image_url" value="<?php echo $edit_service ? esc_attr( $edit_service->image_url ) : ''; ?>" class="widefat" placeholder="https://...">
+					</p>
+
+					<script>
+					document.querySelectorAll('.osb-tab-btn').forEach(btn => {
+						btn.addEventListener('click', () => {
+							document.querySelectorAll('.osb-tab-btn').forEach(b => b.classList.remove('active'));
+							btn.classList.add('active');
+							document.querySelectorAll('.osb-tab-content').forEach(c => c.style.display = 'none');
+							document.querySelector('.osb-tab-content[data-tab="' + btn.dataset.tab + '"]').style.display = 'block';
+						});
+					});
+					</script>
 
 						<p>
 							<button type="submit" class="button button-primary"><?php echo $edit_service ? 'Update Service' : 'Add Service'; ?></button>

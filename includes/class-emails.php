@@ -19,6 +19,9 @@ class Ocean_Shiatsu_Booking_Emails {
 		$message = '<html><body>';
 		$message .= "<h2>New Appointment Request</h2>";
 		$message .= "<p><strong>Client:</strong> {$data['client_name']} ({$data['client_email']})</p>";
+		// Localize service name for Admin email (default to German for Admin, or keep as is if admin prefers English? Admin implies DE usually)
+		// For now, we keep logic simple: Admin email uses service name from DB (which defaults to DE unless we explicitly fetch EN).
+		// Actually, let's show both if available or just DE. Let's stick to standard DB name (likely DE) for Admin.
 		$message .= "<p><strong>Service:</strong> {$data['service_name']}</p>";
 		$message .= "<p><strong>Time:</strong> {$data['date']} at {$data['time']}</p>";
 		if ( ! empty( $data['client_notes'] ) ) {
@@ -64,10 +67,28 @@ class Ocean_Shiatsu_Booking_Emails {
 		// v2.4.1: Generate TRANSFERLINK (ICS download endpoint)
 		$transfer_link = get_rest_url( null, 'osb/v1/calendar/' . $booking->token );
 
+		// v2.5.0: Localize Service Data
+		$lang = ! empty( $booking->language ) ? $booking->language : 'de';
+		
+		// 1. Service Name (Fallback to German if English is empty)
+		$service_name = $service->name;
+		if ( $lang === 'en' && ! empty( $service->name_en ) ) {
+			$service_name = $service->name_en;
+		}
+
+		// 2. Pricing Info (Strict: No fallback to price_range if email text is empty)
+		// Logic: If email_pricing_text is set, use it. If empty, show nothing.
+		$pricing_info = '';
+		if ( $lang === 'en' ) {
+			$pricing_info = ! empty( $service->email_pricing_text_en ) ? $service->email_pricing_text_en : '';
+		} else {
+			$pricing_info = ! empty( $service->email_pricing_text_de ) ? $service->email_pricing_text_de : '';
+		}
+
 		// Prepare data for Refined HTML Template (v2.4)
 		$data = array(
-			'service_name'    => esc_html( $service->name ),
-			'pricing_info'    => isset( $service->price_range ) ? esc_html( $service->price_range ) : '',
+			'service_name'    => esc_html( $service_name ),
+			'pricing_info'    => esc_html( $pricing_info ),
 			'reschedule_link' => $reschedule_link,
 			'cancel_link'     => $cancel_link,
 			'transfer_link'   => $transfer_link,
@@ -160,7 +181,9 @@ class Ocean_Shiatsu_Booking_Emails {
 		
 		// Fetch Service for Template
 		$service = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}osb_services WHERE id = %d", $appt->service_id ) );
-		$service_name = $service ? esc_html( $service->name ) : '';
+		
+		$lang = ! empty( $appt->language ) ? $appt->language : 'de';
+		$service_name = $service ? esc_html( $this->get_localized_service_field( $service, 'name', $lang ) ) : '';
 
 		$booking_page_id = $this->get_setting( 'booking_page_id' );
 		$base_url = $booking_page_id ? get_permalink( $booking_page_id ) : home_url();
@@ -233,7 +256,9 @@ class Ocean_Shiatsu_Booking_Emails {
 		
 		// Load Service Name
 		$service = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}osb_services WHERE id = %d", $appt->service_id ) );
-		$service_name = $service ? esc_html( $service->name ) : '';
+		
+		$lang = ! empty( $appt->language ) ? $appt->language : 'de';
+		$service_name = $service ? esc_html( $this->get_localized_service_field( $service, 'name', $lang ) ) : '';
 		
 		$data = array(
 			'service_name' => $service_name,
@@ -264,7 +289,9 @@ class Ocean_Shiatsu_Booking_Emails {
 		
 		// Fetch Service
 		$service = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}osb_services WHERE id = %d", $appt->service_id ) );
-		$service_name = $service ? esc_html( $service->name ) : '';
+
+		$lang = ! empty( $appt->language ) ? $appt->language : 'de';
+		$service_name = $service ? esc_html( $this->get_localized_service_field( $service, 'name', $lang ) ) : '';
 		
 		$booking_page_id = $this->get_setting( 'booking_page_id' );
 		$base_url = $booking_page_id ? get_permalink( $booking_page_id ) : home_url();
@@ -309,7 +336,9 @@ class Ocean_Shiatsu_Booking_Emails {
 		if ( ! $appt ) return;
 
 		$service = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}osb_services WHERE id = %d", $appt->service_id ) );
-		$service_name = $service ? esc_html( $service->name ) : '';
+		
+		$lang = ! empty( $appt->language ) ? $appt->language : 'de';
+		$service_name = $service ? esc_html( $this->get_localized_service_field( $service, 'name', $lang ) ) : '';
 
 		$data = array(
 			'service_name' => $service_name,
@@ -344,8 +373,16 @@ class Ocean_Shiatsu_Booking_Emails {
 	private function generate_ics_content( $booking, $service ) {
 		$start_ts = strtotime( $booking->start_time );
 		$end_ts = strtotime( $booking->end_time );
-		$service_name = $service ? $service->name : 'Shiatsu Session';
+		$lang = ! empty( $booking->language ) ? $booking->language : 'de';
 		
+		// Localize Service Name
+		$service_name = $service ? $this->get_localized_service_field( $service, 'name', $lang ) : 'Shiatsu Session';
+		
+		// Localize Description
+		$desc = ( $lang === 'en' ) 
+			? "Your appointment at Ocean Shiatsu. Please bring comfortable clothing."
+			: "Dein Termin bei Ocean Shiatsu. Bitte bring bequeme Kleidung mit.";
+
 		$ics = "BEGIN:VCALENDAR\r\n";
 		$ics .= "VERSION:2.0\r\n";
 		$ics .= "PRODID:-//Ocean Shiatsu//Booking System//DE\r\n";
@@ -358,7 +395,7 @@ class Ocean_Shiatsu_Booking_Emails {
 		$ics .= "DTEND:" . date( 'Ymd\THis', $end_ts ) . "\r\n";
 		$ics .= "SUMMARY:Shiatsu - " . $service_name . "\r\n";
 		$ics .= "LOCATION:Wasagasse 3, 1090 Wien\r\n";
-		$ics .= "DESCRIPTION:Dein Termin bei Ocean Shiatsu. Bitte bring bequeme Kleidung mit.\r\n";
+		$ics .= "DESCRIPTION:" . $desc . "\r\n";
 		$ics .= "STATUS:CONFIRMED\r\n";
 		$ics .= "END:VEVENT\r\n";
 		$ics .= "END:VCALENDAR\r\n";
@@ -366,8 +403,19 @@ class Ocean_Shiatsu_Booking_Emails {
 		return $ics;
 	}
 
-/**
-	 * PLUGIN 2.4: Render HTML email template with strict placeholder replacement.
+	/*
+	 * Helper: Resolve localized service field with fallback
+	 */
+	private function get_localized_service_field( $service, $field, $lang ) {
+		$en_field = $field . '_en';
+		if ( $lang === 'en' && ! empty( $service->$en_field ) ) {
+			return $service->$en_field;
+		}
+		return $service->$field ?? '';
+	}
+
+	/**
+	 * Render HTML email template with placeholders.
 	 * 
 	 * @param string $template_name Base name of the template (e.g., 'client-confirmation').
 	 * @param object $booking Booking object from DB.

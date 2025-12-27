@@ -62,16 +62,21 @@ class Ocean_Shiatsu_Booking_Activator {
 			KEY level (level)
 		) $charset_collate;";
 
-		// Services Table
+		// Services Table (with multilingual support DE/EN)
 		$table_name_services = $wpdb->prefix . 'osb_services';
 		$sql_services = "CREATE TABLE $table_name_services (
 			id mediumint(9) NOT NULL AUTO_INCREMENT,
 			name tinytext NOT NULL,
+			name_en tinytext DEFAULT '',
 			duration_minutes int(11) NOT NULL,
 			preparation_minutes int(11) DEFAULT 0 NOT NULL,
 			price decimal(10,2) NOT NULL,
 			price_range varchar(50) DEFAULT '',
+			price_range_en varchar(50) DEFAULT '',
 			description text DEFAULT '',
+			description_en text DEFAULT '',
+			email_pricing_text_de text DEFAULT '',
+			email_pricing_text_en text DEFAULT '',
 			image_url varchar(255) DEFAULT '',
 			PRIMARY KEY  (id)
 		) $charset_collate;";
@@ -177,6 +182,13 @@ class Ocean_Shiatsu_Booking_Activator {
 
 		// Migration: Add price_range column if missing (for updates without reactivation)
 		self::add_column_if_missing( $table_name_services, 'price_range', "varchar(50) DEFAULT '' AFTER price" );
+
+		// v2.5.0: Multilingual support - Add EN columns for services
+		self::add_column_if_missing( $table_name_services, 'name_en', "tinytext DEFAULT '' AFTER name" );
+		self::add_column_if_missing( $table_name_services, 'description_en', "text DEFAULT '' AFTER description" );
+		self::add_column_if_missing( $table_name_services, 'price_range_en', "varchar(50) DEFAULT '' AFTER price_range" );
+		self::add_column_if_missing( $table_name_services, 'email_pricing_text_de', "text DEFAULT '' AFTER image_url" );
+		self::add_column_if_missing( $table_name_services, 'email_pricing_text_en', "text DEFAULT '' AFTER email_pricing_text_de" );
 
 		// Initialize cache version for cache-salting (if not exists)
 		if ( get_option( 'osb_cache_version' ) === false ) {

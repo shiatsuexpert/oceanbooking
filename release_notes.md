@@ -1,5 +1,9 @@
 # Release Notes
 
+## [v2.5.1] - 2025-12-27
+### Fixed
+- **Localization:** Fixed issue where ICS calendar attachments (sent in Confirmation emails) were always in German regardless of the booking language. They now correctly respect the user's booking language (DE/EN) for both the Summary and Description fields.
+
 ## [v2.3.0] - 2025-12-27
 ### Added
 - **Interactive Proposal Workflow (V3):** Clients can now click "Accept" or "Decline" in proposal emails.

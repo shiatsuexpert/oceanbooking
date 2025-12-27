@@ -594,11 +594,18 @@ class Ocean_Shiatsu_Booking_API {
 		}
 
 		// Fetch service name and duration
-		$service = $wpdb->get_row( $wpdb->prepare( "SELECT name, duration_minutes FROM {$wpdb->prefix}osb_services WHERE id = %d", $booking->service_id ) );
-		$booking->service_name = $service->name;
-		$booking->duration_minutes = $service->duration_minutes;
+		// v2.5.0: Localize Service Name
+		$service = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}osb_services WHERE id = %d", $booking->service_id ) );
+		$lang = ! empty( $booking->language ) ? $booking->language : 'de';
+		$service_name = $service ? $this->get_localized_service_field( $service, 'name', $lang ) : '';
 
-		return rest_ensure_response( $booking );
+		return rest_ensure_response( [
+			'id' => $booking->id,
+			'start_time' => $booking->start_time,
+			'service_name' => $service_name,
+			'duration' => $service ? $service->duration_minutes : 60,
+			'status' => $booking->status
+		] );
 	}
 
 	public function request_reschedule( $request ) {
@@ -721,7 +728,10 @@ class Ocean_Shiatsu_Booking_API {
 			$emails->send_admin_cancellation( $booking_id );
 
 			// 4. Return Summary for UI
-			$service_name = $wpdb->get_var( $wpdb->prepare("SELECT name FROM {$wpdb->prefix}osb_services WHERE id = %d", $booking->service_id) );
+			// v2.5.0 Localized Service Name
+			$service = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}osb_services WHERE id = %d", $booking->service_id ) );
+			$lang = ! empty( $booking->language ) ? $booking->language : 'de';
+			$service_name = $service ? $this->get_localized_service_field( $service, 'name', $lang ) : 'Service';
 			
 			return rest_ensure_response( array(
 				'success' => true,
@@ -1190,10 +1200,10 @@ class Ocean_Shiatsu_Booking_API {
 		
 		// Get service name
 		$service = $wpdb->get_row( $wpdb->prepare(
-			"SELECT name FROM {$wpdb->prefix}osb_services WHERE id = %d",
+			"SELECT * FROM {$wpdb->prefix}osb_services WHERE id = %d",
 			$booking->service_id
 		) );
-		$service_name = $service ? $service->name : 'Shiatsu Session';
+		$service_name = $service ? $this->get_localized_service_field( $service, 'name', $request['lang'] ?? 'de' ) : 'Shiatsu Session';
 		
 		// Generate ICS content
 		$start_ts = strtotime( $booking->start_time );
@@ -1223,5 +1233,15 @@ class Ocean_Shiatsu_Booking_API {
 		
 		echo $ics_content;
 		exit;
+	}
+	/*
+	 * Helper: Resolve localized service field with fallback
+	 */
+	private function get_localized_service_field( $service, $field, $lang ) {
+		$en_field = $field . '_en';
+		if ( $lang === 'en' && ! empty( $service->$en_field ) ) {
+			return $service->$en_field;
+		}
+		return $service->$field ?? '';
 	}
 }

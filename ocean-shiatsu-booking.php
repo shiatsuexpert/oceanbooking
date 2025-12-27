@@ -3,7 +3,7 @@
  * Plugin Name: Ocean Shiatsu Booking
  * Plugin URI:  https://oceanshiatsu.com
  * Description: A premium appointment booking system with Google Calendar sync and email workflow.
- * Version:           2.4.1
+ * Version:           2.5.1
  * Author:            Ocean Shiatsu
  * Author URI:        https://oceanshiatsu.com
  * License:           GPL-2.0+
@@ -21,8 +21,8 @@ if ( ! defined( 'WPINC' ) ) {
  * Start at version 1.0.0 and use SemVer - https://semver.org
  * Rename this for your plugin and update it as you release new versions.
  */
-define( 'OCEAN_SHIATSU_BOOKING_VERSION', '2.4.1' );
-define( 'OSB_VERSION', '2.4.1' ); // Alias for consistency
+define( 'OCEAN_SHIATSU_BOOKING_VERSION', '2.5.1' );
+define( 'OSB_VERSION', '2.5.1' ); // Alias for consistency
 define( 'OSB_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'OSB_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 

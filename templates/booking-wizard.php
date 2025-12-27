@@ -9,6 +9,18 @@
 global $wpdb;
 $services = $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}osb_services" );
 $version_setting = $wpdb->get_var( "SELECT setting_value FROM {$wpdb->prefix}osb_settings WHERE setting_key = 'osb_frontend_version'" ) ?: 'v2';
+
+// v2.5.0: Get current language for localized service data
+$current_lang = Ocean_Shiatsu_Booking_i18n::get_current_language();
+
+// Helper: Get localized field with fallback to German
+function osb_get_localized_field( $service, $field, $lang ) {
+    $en_field = $field . '_en';
+    if ( $lang === 'en' && ! empty( $service->$en_field ) ) {
+        return $service->$en_field;
+    }
+    return $service->$field ?? '';
+}
 ?>
 
 <?php if ( $version_setting === 'v3' ) : ?>
@@ -40,27 +52,34 @@ $version_setting = $wpdb->get_var( "SELECT setting_value FROM {$wpdb->prefix}osb
     <!-- Step Content Area (populated by JavaScript) -->
     <div class="step-content active step-content-area" tabindex="-1">
         <!-- Service cards with data attributes for V3 JS to parse -->
-        <?php foreach ( $services as $service ) : ?>
+        <?php foreach ( $services as $service ) : 
+            $name = osb_get_localized_field( $service, 'name', $current_lang );
+            $desc = osb_get_localized_field( $service, 'description', $current_lang );
+            $price_display = osb_get_localized_field( $service, 'price_range', $current_lang );
+            if ( empty( $price_display ) ) {
+                $price_display = number_format( $service->price, 0 ) . ' €';
+            }
+        ?>
         <div class="service-card"
              data-service-id="<?php echo esc_attr( $service->id ); ?>"
-             data-service-name="<?php echo esc_attr( $service->name ); ?>"
+             data-service-name="<?php echo esc_attr( $name ); ?>"
              data-service-duration="<?php echo esc_attr( $service->duration_minutes ); ?>"
-             data-service-price="<?php echo esc_attr( $service->price_range ?? number_format( $service->price, 0 ) . ' €' ); ?>"
+             data-service-price="<?php echo esc_attr( $price_display ); ?>"
              data-service-image="<?php echo esc_url( $service->image_url ?? '' ); ?>"
-             data-service-description="<?php echo esc_attr( $service->description ?? '' ); ?>"
+             data-service-description="<?php echo esc_attr( $desc ); ?>"
              data-action="select-service">
             <?php if ( ! empty( $service->image_url ) ) : ?>
-                <img src="<?php echo esc_url( $service->image_url ); ?>" alt="<?php echo esc_attr( $service->name ); ?>" class="service-img">
+                <img src="<?php echo esc_url( $service->image_url ); ?>" alt="<?php echo esc_attr( $name ); ?>" class="service-img">
             <?php endif; ?>
             <div class="service-info">
-                <h5 class="mb-2"><?php echo esc_html( $service->name ); ?></h5>
-                <?php if ( ! empty( $service->description ) ) : ?>
-                    <p class="service-desc mb-0"><?php echo esc_html( $service->description ); ?></p>
+                <h5 class="mb-2"><?php echo esc_html( $name ); ?></h5>
+                <?php if ( ! empty( $desc ) ) : ?>
+                    <p class="service-desc mb-0"><?php echo esc_html( $desc ); ?></p>
                 <?php endif; ?>
             </div>
             <div class="service-meta-block">
                 <div class="service-duration-main"><?php echo esc_html( $service->duration_minutes ); ?> Min</div>
-                <div class="service-cost-sub"><?php echo esc_html( $service->price_range ?? number_format( $service->price, 0 ) . ' €' ); ?></div>
+                <div class="service-cost-sub"><?php echo esc_html( $price_display ); ?></div>
             </div>
         </div>
         <?php endforeach; ?>
