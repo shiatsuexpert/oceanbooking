@@ -411,17 +411,17 @@ class Ocean_Shiatsu_Booking_Admin {
 			check_admin_referer( 'osb_service_verify', 'osb_save_service' );
 			
 			$data = [
-				'name' => sanitize_text_field( $_POST['name'] ),
-				'name_en' => sanitize_text_field( $_POST['name_en'] ?? '' ),
+				'name' => sanitize_text_field( wp_unslash( $_POST['name'] ) ),
+				'name_en' => sanitize_text_field( wp_unslash( $_POST['name_en'] ?? '' ) ),
 				'duration_minutes' => intval( $_POST['duration'] ),
 				'preparation_minutes' => intval( $_POST['preparation'] ),
 				'price' => floatval( $_POST['price'] ),
-				'price_range' => sanitize_text_field( $_POST['price_range'] ?? '' ),
-				'price_range_en' => sanitize_text_field( $_POST['price_range_en'] ?? '' ),
-				'description' => wp_kses_post( $_POST['description'] ),
-				'description_en' => wp_kses_post( $_POST['description_en'] ?? '' ),
-				'email_pricing_text_de' => sanitize_textarea_field( $_POST['email_pricing_text_de'] ?? '' ),
-				'email_pricing_text_en' => sanitize_textarea_field( $_POST['email_pricing_text_en'] ?? '' ),
+				'price_range' => sanitize_text_field( wp_unslash( $_POST['price_range'] ?? '' ) ),
+				'price_range_en' => sanitize_text_field( wp_unslash( $_POST['price_range_en'] ?? '' ) ),
+				'description' => wp_kses_post( wp_unslash( $_POST['description'] ) ),
+				'description_en' => wp_kses_post( wp_unslash( $_POST['description_en'] ?? '' ) ),
+				'email_pricing_text_de' => sanitize_textarea_field( wp_unslash( $_POST['email_pricing_text_de'] ?? '' ) ),
+				'email_pricing_text_en' => sanitize_textarea_field( wp_unslash( $_POST['email_pricing_text_en'] ?? '' ) ),
 				'image_url' => esc_url_raw( $_POST['image_url'] ),
 			];
 

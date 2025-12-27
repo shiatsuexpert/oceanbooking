@@ -1,5 +1,13 @@
 # Release Notes
 
+## [v2.5.2] - 2025-12-27
+### Fixed
+- **Mobile UI:** Fixed padding issues on mobile devices (edge-to-edge content) by adding margin to `.booking-widget` in `style-v3.css`.
+- **Text Size:** Increased service description font size from `0.85rem` to `0.95rem` for better readability.
+- **Data Integrity:** Fixed double-escaping of quotes in service descriptions by adding `wp_unslash()` to `class-admin.php`.
+- **Styling:** Fixed calendar header date font size to `1rem` via JS injection to override theme conflicts.
+- **Reschedule:** Fixed broken reschedule link in emails (404 error) by correcting the API endpoint in `booking-app-v3.js`.
+
 ## [v2.5.1] - 2025-12-27
 ### Fixed
 - **Localization:** Fixed issue where ICS calendar attachments (sent in Confirmation emails) were always in German regardless of the booking language. They now correctly respect the user's booking language (DE/EN) for both the Summary and Description fields.

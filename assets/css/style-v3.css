@@ -199,8 +199,9 @@
 }
 
 .booking-widget .service-desc {
-    font-size: 0.85rem;
-    color: #6c757d;
+    font-size: 0.95rem;
+    /* v2.5.2: 0.95rem */
+    color: var(--os-text-muted);
     margin: 5px 0 0;
     line-height: 1.4;
 }
@@ -648,7 +649,8 @@
 /* --- RESPONSIVE: Tablet & Mobile --- */
 @media (max-width: 768px) {
     .booking-widget {
-        margin: 10px auto;
+        margin: 10px 15px;
+        /* v2.5.2: Fix edge touching (was auto) */
     }
 
     .booking-widget .step-content {

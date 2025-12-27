@@ -1104,7 +1104,8 @@ const osbV3 = {
 
             const dateSpan = this.el('span', {}, dateStr);
             // FORCE reset all properties to ensure it inherits from parent and kills any theme background/block styling
-            dateSpan.style.cssText = "background: none !important; background-color: transparent !important; color: inherit !important; font-family: inherit !important; font-size: inherit !important; padding: 0 !important; margin: 0 !important; border: 0 !important; display: inline !important; box-shadow: none !important;";
+            // v2.5.2: Force font-size to 1rem to match header text exactly (fix for small text)
+            dateSpan.style.cssText = "background: none !important; background-color: transparent !important; color: inherit !important; font-family: inherit !important; font-size: 1rem !important; padding: 0 !important; margin: 0 !important; border: 0 !important; display: inline !important; box-shadow: none !important;";
             header.appendChild(dateSpan);
 
             slotsContainer.appendChild(header);
@@ -1916,7 +1917,8 @@ const osbV3 = {
     async loadBookingForReschedule(token) {
         this.showLoading();
         try {
-            const response = await fetch(`${this.state.config.apiUrl}booking?token=${token}`, {
+            // v2.5.2: Fix: Use booking-by-token (GET) instead of booking (POST)
+            const response = await fetch(`${this.state.config.apiUrl}booking-by-token?token=${token}`, {
                 headers: { 'X-WP-Nonce': this.state.config.nonce },
             });
 
