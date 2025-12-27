@@ -149,6 +149,9 @@ class Ocean_Shiatsu_Booking_Sync {
 			$gcal_start = date( 'Y-m-d H:i:s', $gcal_start_ts );
 			$gcal_end = date( 'Y-m-d H:i:s', $gcal_end_ts );
 
+			// Capture old start time BEFORE updating DB (for email notification)
+			$old_start_time = $booking->start_time;
+
 			$wpdb->update( 
 				$table_name, 
 				[
@@ -164,7 +167,7 @@ class Ocean_Shiatsu_Booking_Sync {
 			// Notify Client/Admin (unless triggered by local action)
 			if ( ! get_transient( 'osb_ignore_sync_' . $booking->id ) ) {
 				$emails = new Ocean_Shiatsu_Booking_Emails();
-				$emails->send_sync_time_change_notice( $booking->id, $gcal_start );
+				$emails->send_sync_time_change_notice( $booking->id, $gcal_start, $old_start_time );
 			}
 		}
 	}

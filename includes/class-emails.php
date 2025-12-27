@@ -51,7 +51,7 @@ class Ocean_Shiatsu_Booking_Emails {
 			if ( class_exists( 'Ocean_Shiatsu_Booking_Logger' ) ) {
 				Ocean_Shiatsu_Booking_Logger::log( 'ERROR', 'Email', "Service missing for booking ID {$booking_id}" );
 			}
-			$service = (object) array( 'name' => __( '(Unknown Service)', 'ocean-shiatsu-booking' ) );
+			$service = (object) array( 'name' => __( '(Unknown Service)', 'ocean-shiatsu-booking' ), 'price_range' => '' );
 		}
 		
 		// Get booking page for links
@@ -60,23 +60,46 @@ class Ocean_Shiatsu_Booking_Emails {
 		
 		$reschedule_link = add_query_arg( ['action' => 'reschedule', 'token' => $booking->token], $base_url );
 		$cancel_link = add_query_arg( ['action' => 'cancel', 'token' => $booking->token], $base_url );
+		
+		// v2.4.1: Generate TRANSFERLINK (ICS download endpoint)
+		$transfer_link = get_rest_url( null, 'osb/v1/calendar/' . $booking->token );
 
-		// Load template based on booking language (default to 'de')
-		$lang = ! empty( $booking->language ) ? $booking->language : 'de';
-		$message = $this->load_email_template( 'confirmation', $lang, compact( 'booking', 'service', 'reschedule_link', 'cancel_link' ) );
+		// Prepare data for Refined HTML Template (v2.4)
+		$data = array(
+			'service_name'    => esc_html( $service->name ),
+			'pricing_info'    => isset( $service->price_range ) ? esc_html( $service->price_range ) : '',
+			'reschedule_link' => $reschedule_link,
+			'cancel_link'     => $cancel_link,
+			'transfer_link'   => $transfer_link,
+		);
 
-		// Fallback to German if template not found
-		if ( empty( $message ) ) {
-			$message = $this->load_email_template( 'confirmation', 'de', compact( 'booking', 'service', 'reschedule_link', 'cancel_link' ) );
-		}
+		// Render Template
+		$message = $this->render_html_template( 'client-confirmation', $booking, $data );
 
 		$to = $booking->client_email;
+		
+		// Subject (Localized)
+		$lang = ! empty( $booking->language ) ? $booking->language : 'de';
 		$subject = ( $lang === 'en' ) 
 			? 'Appointment Confirmed: ' . date( 'd/m/Y H:i', strtotime( $booking->start_time ) )
 			: 'Terminbestätigung: ' . date( 'd.m.Y H:i', strtotime( $booking->start_time ) );
+			
 		$headers = array('Content-Type: text/html; charset=UTF-8');
-
-		wp_mail( $to, $subject, $message, $headers );
+		
+		// v2.4.1: Generate ICS file for attachment
+		$ics_content = $this->generate_ics_content( $booking, $service );
+		$ics_path = sys_get_temp_dir() . '/osb_appointment_' . $booking->id . '.ics';
+		file_put_contents( $ics_path, $ics_content );
+		
+		// Send with attachment
+		$sent = wp_mail( $to, $subject, $message, $headers, array( $ics_path ) );
+		
+		// Cleanup temp file
+		if ( file_exists( $ics_path ) ) {
+			unlink( $ics_path );
+		}
+		
+		return $sent;
 	}
 
 	public function send_admin_notification_confirmed( $booking_id ) {
@@ -133,34 +156,39 @@ class Ocean_Shiatsu_Booking_Emails {
 	public function send_proposal( $booking_id, $new_start_time ) {
 		global $wpdb;
 		$appt = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}osb_appointments WHERE id = %d", $booking_id ) );
+		if ( ! $appt ) return;
 		
-		$to = $appt->client_email;
-		$subject = 'Deine Terminanfrage - Neue Terminzeit vorgeschlagen';
-		
-		$headers = array('Content-Type: text/html; charset=UTF-8');
-		
-		$formatted_time = date( 'd.m.Y H:i', strtotime( $new_start_time ) );
-		
+		// Fetch Service for Template
+		$service = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}osb_services WHERE id = %d", $appt->service_id ) );
+		$service_name = $service ? esc_html( $service->name ) : '';
+
 		$booking_page_id = $this->get_setting( 'booking_page_id' );
 		$base_url = $booking_page_id ? get_permalink( $booking_page_id ) : home_url();
 
 		$accept_link = add_query_arg( ['action' => 'accept_proposal', 'token' => $appt->token], $base_url );
 		$decline_link = add_query_arg( ['action' => 'decline_proposal', 'token' => $appt->token], $base_url );
 
-		$message = '<html><body>';
-		$message .= "<h2>Neue Terminzeit vorgeschlagen</h2>";
-		$greeting = "Hallo {$appt->client_name},";
-		if ( ! empty( $appt->client_last_name ) ) {
-			$greeting = "Hallo " . trim( $appt->client_salutation . ' ' . $appt->client_last_name ) . ",";
-		}
-		$message .= "<p>$greeting</p>";
-		$message .= "<p>Leider klappt der ursprünglich angefragte Termin nicht.</p>";
-		$message .= "<p>Ich schlage stattdessen folgenden Termin vor:</p>";
-		$message .= "<h3>$formatted_time Uhr</h3>";
-		$message .= "<p>Bitte bestätigen Sie diesen neuen Termin:</p>";
-		$message .= "<p><a href='$accept_link' style='color: green; font-weight: bold;'>Vorschlag annehmen</a></p>";
-		$message .= "<p><a href='$decline_link' style='color: red;'>Ablehnen</a></p>";
-		$message .= '</body></html>';
+		$lang = ! empty( $appt->language ) ? $appt->language : 'de';
+		
+		$date_fmt = ( $lang === 'en' ) ? 'd/m/Y H:i' : 'd.m.Y H:i';
+		$formatted_time = date( $date_fmt, strtotime( $new_start_time ) );
+
+		// Prepare Data
+		$data = array(
+			'proposed_date' => $formatted_time,
+			'service_name'  => $service_name,
+			'accept_link'   => $accept_link,
+			'reject_link'   => $decline_link,
+		);
+
+		$message = $this->render_html_template( 'client-proposal', $appt, $data );
+
+		$to = $appt->client_email;
+		$subject = ( $lang === 'en' ) 
+			? 'Your Appointment Request - New Time Proposed'
+			: 'Deine Terminanfrage - Neue Terminzeit vorgeschlagen';
+		
+		$headers = array('Content-Type: text/html; charset=UTF-8');
 
 		wp_mail( $to, $subject, $message, $headers );
 	}
@@ -196,62 +224,106 @@ class Ocean_Shiatsu_Booking_Emails {
 		wp_mail( $to, $subject, $message, $headers );
 	}
 
-	public function send_sync_cancellation_notice( $booking_id, $reason ) {
+	public function send_sync_cancellation_notice( $booking_id, $reason = '' ) {
 		global $wpdb;
 		$appt = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}osb_appointments WHERE id = %d", $booking_id ) );
+		if ( ! $appt ) return;
 		
 		$to = $appt->client_email;
-		$subject = 'Terminänderung: Termin abgesagt';
+		
+		// Load Service Name
+		$service = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}osb_services WHERE id = %d", $appt->service_id ) );
+		$service_name = $service ? esc_html( $service->name ) : '';
+		
+		$data = array(
+			'service_name' => $service_name,
+			// Template client-cancellation does NOT support comment/reason
+		);
+		
+		$message = $this->render_html_template( 'client-cancellation', $appt, $data );
+		
+		$lang = ! empty( $appt->language ) ? $appt->language : 'de';
+		$subject = ( $lang === 'en' ) ? 'Cancellation - ' . date( 'd/m/Y', strtotime( $appt->start_time ) ) : 'Terminstornierung - ' . date( 'd.m.Y', strtotime( $appt->start_time ) );
+		
 		$headers = array('Content-Type: text/html; charset=UTF-8');
 		
-		$message = "<html><body>";
-		$message .= "<p>Hallo " . esc_html( $appt->client_name ) . ",</p>";
-		$message .= "<p>Ihr Termin am " . date('d.m.Y H:i', strtotime($appt->start_time)) . " wurde abgesagt.</p>";
-		$message .= "<p>Grund: " . esc_html( $reason ) . "</p>";
-		$message .= "</body></html>";
+		wp_mail( $to, $subject, $message, $headers );
+		
+		// Notify Admin (Keep existing simple notification)
+		$admin_email = get_option('admin_email');
+		$admin_msg = "Termin abgesagt (GCal Sync): {$appt->client_name}. Grund: $reason";
+		wp_mail( $admin_email, "Termin abgesagt (GCal Sync): {$appt->client_name}", $admin_msg, $headers );
+	}
+
+	public function send_sync_time_change_notice( $booking_id, $new_time, $old_start_time = '' ) {
+		global $wpdb;
+		$appt = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}osb_appointments WHERE id = %d", $booking_id ) );
+		if ( ! $appt ) return;
+		
+		$to = $appt->client_email;
+		
+		// Fetch Service
+		$service = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}osb_services WHERE id = %d", $appt->service_id ) );
+		$service_name = $service ? esc_html( $service->name ) : '';
+		
+		$booking_page_id = $this->get_setting( 'booking_page_id' );
+		$base_url = $booking_page_id ? get_permalink( $booking_page_id ) : home_url();
+		$reschedule_link = add_query_arg( ['action' => 'reschedule', 'token' => $appt->token], $base_url );
+		$cancel_link = add_query_arg( ['action' => 'cancel', 'token' => $appt->token], $base_url );
+
+		$lang = ! empty( $appt->language ) ? $appt->language : 'de';
+		$date_fmt = ( $lang === 'en' ) ? 'd/m/Y H:i' : 'd.m.Y H:i';
+
+		// Format previous start date if provided
+		$formatted_old_date = '';
+		if ( ! empty( $old_start_time ) ) {
+			$formatted_old_date = date( $date_fmt, strtotime( $old_start_time ) );
+		}
+
+		$data = array(
+			'service_name'        => $service_name,
+			'reschedule_link'     => $reschedule_link,
+			'cancel_link'         => $cancel_link,
+			'previous_start_date' => $formatted_old_date,
+		);
+
+		$message = $this->render_html_template( 'client-reschedule', $appt, $data );
+
+		$subject = ( $lang === 'en' ) 
+			? 'Rescheduled Appointment - ' . date( 'd/m/Y H:i', strtotime( $new_time ) )
+			: 'Terminverschiebung - ' . date( 'd.m.Y H:i', strtotime( $new_time ) );
+			
+		$headers = array('Content-Type: text/html; charset=UTF-8');
 		
 		wp_mail( $to, $subject, $message, $headers );
 		
 		// Notify Admin
 		$admin_email = get_option('admin_email');
-		wp_mail( $admin_email, "Termin abgesagt (GCal Sync): {$appt->client_name}", $message, $headers );
+		$admin_msg = "Terminverschiebung (GCal Sync): {$appt->client_name} auf " . date('d.m.Y H:i', strtotime($new_time));
+		wp_mail( $admin_email, "Terminverschiebung (GCal Sync): {$appt->client_name}", $admin_msg, $headers );
 	}
 
-	public function send_sync_time_change_notice( $booking_id, $new_time ) {
-		global $wpdb;
-		$appt = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}osb_appointments WHERE id = %d", $booking_id ) );
-		
-		$to = $appt->client_email;
-		$subject = 'Terminänderung: Neue Uhrzeit';
-		$headers = array('Content-Type: text/html; charset=UTF-8');
-		
-		$message = "<html><body>";
-		$message .= "<p>Hallo " . esc_html( $appt->client_name ) . ",</p>";
-		$message .= "<p>Ihr Termin wurde auf <strong>" . date('d.m.Y H:i', strtotime($new_time)) . "</strong> verlegt.</p>";
-		$message .= "</body></html>";
-		
-		wp_mail( $to, $subject, $message, $headers );
-		
-		// Notify Admin
-		$admin_email = get_option('admin_email');
-		wp_mail( $admin_email, "Terminverschiebung (GCal Sync): {$appt->client_name}", $message, $headers );
-	}
-
-	public function send_client_rejection( $booking_id ) {
+	public function send_client_rejection( $booking_id, $comment = '' ) {
 		global $wpdb;
 		$appt = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}osb_appointments WHERE id = %d", $booking_id ) );
 		if ( ! $appt ) return;
 
-		$to = $appt->client_email;
-		$subject = 'Ihr Termin konnte leider nicht bestätigt werden';
-		$headers = array('Content-Type: text/html; charset=UTF-8');
+		$service = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}osb_services WHERE id = %d", $appt->service_id ) );
+		$service_name = $service ? esc_html( $service->name ) : '';
 
-		$message = "<html><body>";
-		$message .= "<p>Hallo " . esc_html( $appt->client_name ) . ",</p>";
-		$message .= "<p>Wir müssen Ihnen leider mitteilen, dass wir Ihren angefragten Termin am <strong>" . date('d.m.Y H:i', strtotime($appt->start_time)) . "</strong> nicht bestätigen können.</p>";
-		$message .= "<p>Bitte versuchen Sie eine Buchung zu einer anderen Zeit.</p>";
-		$message .= "<p>Mit freundlichen Grüßen,<br>Ihr Ocean Shiatsu Team</p>";
-		$message .= "</body></html>";
+		$data = array(
+			'service_name' => $service_name,
+			'comment'      => $comment,
+		);
+		$message = $this->render_html_template( 'client-rejection', $appt, $data );
+
+		$to = $appt->client_email;
+		$lang = ! empty( $appt->language ) ? $appt->language : 'de';
+		$subject = ( $lang === 'en' ) 
+			? 'Your appointment could not be confirmed'
+			: 'Ihr Termin konnte leider nicht bestätigt werden';
+			
+		$headers = array('Content-Type: text/html; charset=UTF-8');
 
 		wp_mail( $to, $subject, $message, $headers );
 	}
@@ -260,6 +332,143 @@ class Ocean_Shiatsu_Booking_Emails {
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'osb_settings';
 		return $wpdb->get_var( $wpdb->prepare( "SELECT setting_value FROM $table_name WHERE setting_key = %s", $key ) );
+	}
+
+	/**
+	 * v2.4.1: Generate ICS calendar content for email attachment.
+	 * 
+	 * @param object $booking Booking object
+	 * @param object $service Service object
+	 * @return string ICS file content
+	 */
+	private function generate_ics_content( $booking, $service ) {
+		$start_ts = strtotime( $booking->start_time );
+		$end_ts = strtotime( $booking->end_time );
+		$service_name = $service ? $service->name : 'Shiatsu Session';
+		
+		$ics = "BEGIN:VCALENDAR\r\n";
+		$ics .= "VERSION:2.0\r\n";
+		$ics .= "PRODID:-//Ocean Shiatsu//Booking System//DE\r\n";
+		$ics .= "CALSCALE:GREGORIAN\r\n";
+		$ics .= "METHOD:PUBLISH\r\n";
+		$ics .= "BEGIN:VEVENT\r\n";
+		$ics .= "UID:" . $booking->token . "@oceanshiatsu.at\r\n";
+		$ics .= "DTSTAMP:" . gmdate( 'Ymd\THis\Z' ) . "\r\n";
+		$ics .= "DTSTART:" . date( 'Ymd\THis', $start_ts ) . "\r\n";
+		$ics .= "DTEND:" . date( 'Ymd\THis', $end_ts ) . "\r\n";
+		$ics .= "SUMMARY:Shiatsu - " . $service_name . "\r\n";
+		$ics .= "LOCATION:Wasagasse 3, 1090 Wien\r\n";
+		$ics .= "DESCRIPTION:Dein Termin bei Ocean Shiatsu. Bitte bring bequeme Kleidung mit.\r\n";
+		$ics .= "STATUS:CONFIRMED\r\n";
+		$ics .= "END:VEVENT\r\n";
+		$ics .= "END:VCALENDAR\r\n";
+		
+		return $ics;
+	}
+
+/**
+	 * PLUGIN 2.4: Render HTML email template with strict placeholder replacement.
+	 * 
+	 * @param string $template_name Base name of the template (e.g., 'client-confirmation').
+	 * @param object $booking Booking object from DB.
+	 * @param array $data Additional data for placeholders (e.g., specific links).
+	 * @param string|null $override_lang Optional language code to force (e.g., 'en').
+	 * @return string Rendered HTML.
+	 */
+	private function render_html_template( $template_name, $booking, $data = array(), $override_lang = null ) {
+		$lang = $override_lang ? $override_lang : ( ! empty( $booking->language ) ? $booking->language : 'de' );
+		
+		// Validate language code
+		$lang = preg_match( '/^[a-z]{2}$/', $lang ) ? $lang : 'de';
+
+		// Construct filename: e.g., client-confirmation-en.html
+		$filename = "{$template_name}-{$lang}.html";
+		$path = OSB_PLUGIN_DIR . "templates/emails/{$filename}";
+		
+		if ( ! file_exists( $path ) ) {
+			// Fallback to German (Default)
+			$path = OSB_PLUGIN_DIR . "templates/emails/{$template_name}-de.html";
+		}
+		
+		if ( ! file_exists( $path ) ) {
+			if ( class_exists( 'Ocean_Shiatsu_Booking_Logger' ) ) {
+				Ocean_Shiatsu_Booking_Logger::log( 'ERROR', 'Email', "HTML Template not found: {$template_name} (Lang: {$lang})" );
+			}
+			return '';
+		}
+		
+		$template_content = file_get_contents( $path );
+		
+		// 1. Prepare Standard Placeholders
+		$start_time = strtotime( $booking->start_time );
+		$date_fmt = ( $lang === 'en' ) ? 'd/m/Y' : 'd.m.Y';
+		$time_fmt = 'H:i';
+		$datetime_fmt = ( $lang === 'en' ) ? 'd/m/Y H:i' : 'd.m.Y H:i';
+
+		$replacements = array(
+			'APPOINTMENTSTART' => date( $datetime_fmt, $start_time ),
+			'APPOINTMENT'      => date( $datetime_fmt, $start_time ), // Alias often used
+			'SELECTEDSERVICE'  => isset( $data['service_name'] ) ? $data['service_name'] : '',
+			'REFERENCECODE'    => $booking->token, // Using Token as safe reference code
+			'ADDITIONALCOMMENT' => isset( $data['comment'] ) && ! empty( $data['comment'] ) ? nl2br( esc_html( $data['comment'] ) ) : '',
+			'PRICINGINFO'      => isset( $data['pricing_info'] ) ? $data['pricing_info'] : '',
+			
+			// Dynamic Dates (for Reschedule)
+			'PREVIOUSSTARTDATE' => isset( $data['previous_start_date'] ) ? $data['previous_start_date'] : '',
+			'PROPOSED_DATE'     => isset( $data['proposed_date'] ) ? $data['proposed_date'] : '',
+			
+			// Links
+			'TRANSFERLINK'       => isset( $data['transfer_link'] ) ? $data['transfer_link'] : '',
+			'CHANGELINKCALENDAR' => isset( $data['reschedule_link'] ) ? $data['reschedule_link'] : '',
+			'CANCELLINK'         => isset( $data['cancel_link'] ) ? $data['cancel_link'] : '',
+			'ACCEPT_LINK'        => isset( $data['accept_link'] ) ? $data['accept_link'] : '',
+			'REJECT_LINK'        => isset( $data['reject_link'] ) ? $data['reject_link'] : '',
+			
+			// Current Date (for Title %DATE%)
+			'%DATE%'             => date( $date_fmt, $start_time ),
+		);
+
+		// 2. Handle First Name Extraction for Greeting
+		// Try to get just the first name from "First Last"
+		$parts = explode( ' ', trim( $booking->client_name ) );
+		$first_name = ( count( $parts ) > 0 ) ? $parts[0] : '';
+		
+		// 3. Conditional Greeting Replacement
+		// Pattern: /Hallo FIRSTNAME IS EMPTY Hallo!/ or /Hello FIRSTNAME IS EMPTY Hello!/
+		// We use a flexible regex to capture the greeting word used in the template (Hallo/Hello)
+		// and the suffix punctuation.
+		
+		// Strict Regex for the provided placeholder structure:
+		// Matches: "Hallo FIRSTNAME IS EMPTY Hallo!" or "Hello FIRSTNAME IS EMPTY Hello!"
+		// We replace it with: "{Greeting} {FirstName}," OR "{Greeting}!"
+		// Updates v2.4.1: Handle HTML non-breaking spaces (&nbsp;, &#160;) common in email templates
+		
+		$template_content = preg_replace_callback(
+			'/(Hallo|Hello)(?:\s|&nbsp;|&#160;)+FIRSTNAME(?:\s|&nbsp;|&#160;)+IS(?:\s|&nbsp;|&#160;)+EMPTY(?:\s|&nbsp;|&#160;)+(Hallo|Hello)!/i',
+			function( $matches ) use ( $first_name ) {
+				$greeting_word = $matches[1]; // "Hallo" or "Hello"
+				if ( ! empty( $first_name ) ) {
+					return $greeting_word . ' ' . esc_html( $first_name ) . ',';
+				} else {
+					return $greeting_word . '!';
+				}
+			},
+			$template_content
+		);
+
+		// 4. Standard Placeholder Replacement
+		foreach ( $replacements as $placeholder => $value ) {
+			// Strict string replace
+			$template_content = str_replace( $placeholder, $value, $template_content );
+		}
+
+		// 5. Cleanup: Remove any remaining uppercase placeholders that weren't replaced (optional but clean)
+		// Be careful not to remove valid text. Our placeholders are specific. 
+		// For safety, we only remove known placeholders if they are empty.
+		// The loop above already replaced them with '' if empty. Use a list of known keys?
+		// Actually, let's leave this for now to avoid accidental deletions of text like "USA" or "GMT".
+
+		return $template_content;
 	}
 
 	/**
@@ -337,14 +546,23 @@ class Ocean_Shiatsu_Booking_Emails {
 		$reschedule_link = add_query_arg( ['action' => 'reschedule', 'token' => $booking->token], $base_url );
 		$cancel_link = add_query_arg( ['action' => 'cancel', 'token' => $booking->token], $base_url );
 
-		// Load template based on booking language
-		$lang = ! empty( $booking->language ) ? $booking->language : 'de';
-		$message = $this->load_email_template( 'reminder', $lang, compact( 'booking', 'service', 'reschedule_link', 'cancel_link' ) );
+		// Prepare data for Refined HTML Template (v2.4)
+		$data = array(
+			'service_name'    => $service->name,
+			'reschedule_link' => $reschedule_link,
+			'cancel_link'     => $cancel_link,
+		);
+
+		// Render Template
+		$message = $this->render_html_template( 'client-reminder', $booking, $data );
 
 		$to = $booking->client_email;
+		$lang = ! empty( $booking->language ) ? $booking->language : 'de';
+		
 		$subject = ( $lang === 'en' ) 
 			? 'Reminder: Your appointment on ' . date( 'd/m/Y', strtotime( $booking->start_time ) )
 			: 'Erinnerung: Ihr Termin am ' . date( 'd.m.Y', strtotime( $booking->start_time ) );
+		
 		$headers = array('Content-Type: text/html; charset=UTF-8');
 
 		return wp_mail( $to, $subject, $message, $headers );
@@ -388,5 +606,40 @@ class Ocean_Shiatsu_Booking_Emails {
 		$headers = array('Content-Type: text/html; charset=UTF-8');
 
 		wp_mail( $to, $subject, $message, $headers );
+	}
+	/**
+	 * PLUGIN 2.4: Preview template for Admin testing.
+	 * 
+	 * @param string $template_name
+	 * @param string $lang
+	 * @return string HTML
+	 */
+	public function preview_template( $template_name, $lang = 'de' ) {
+		// Mock Booking Object
+		$booking = (object) array(
+			'client_name' => 'Peter Podesva',
+			'client_email' => 'peter@example.com',
+			'start_time' => date('Y-m-d H:i:s', strtotime('+1 day 10:00')),
+			'language' => $lang,
+			'token' => 'PREVIEW-TOKEN-123',
+			'service_id' => 1
+		);
+		
+		// Mock Data
+		$data = array(
+			'service_name'      => 'Shiatsu Session (50 Min)',
+			'price_range'       => '€ 60 - 80',
+			'reschedule_link'   => '#',
+			'cancel_link'       => '#',
+			'accept_link'       => '#',
+			'reject_link'       => '#',
+			'transfer_link'     => '#',
+			'comment'           => 'Dies ist ein Test-Kommentar für die Vorschau.',
+			'previous_start_date' => date('d.m.Y H:i', strtotime('+1 day 14:00')),
+			'proposed_date'     => date('d.m.Y H:i', strtotime('+2 days 10:00')),
+			'pricing_info'      => '€ 60 - 80'
+		);
+		
+		return $this->render_html_template( $template_name, $booking, $data, $lang );
 	}
 }

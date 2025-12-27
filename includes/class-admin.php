@@ -57,6 +57,59 @@ class Ocean_Shiatsu_Booking_Admin {
 			'osb-cache', 
 			array( $this, 'display_cache_inspector' ) 
 		);
+
+		add_submenu_page( 
+			'ocean-shiatsu-booking', 
+			'Email Preview', 
+			'Email Preview', 
+			'manage_options', 
+			'osb-email-preview', 
+			array( $this, 'display_email_preview' ) 
+		);
+	}
+
+		public function display_email_preview() {
+		if ( ! current_user_can( 'manage_options' ) ) return;
+
+		// Handle Preview Raw Output
+		if ( isset( $_GET['template'] ) && isset( $_GET['render_raw'] ) ) {
+			$template = sanitize_text_field( $_GET['template'] );
+			$lang = isset( $_GET['lang'] ) ? sanitize_text_field( $_GET['lang'] ) : 'de';
+			
+			$emails = new Ocean_Shiatsu_Booking_Emails();
+			echo $emails->preview_template( $template, $lang );
+			exit;
+		}
+
+		?>
+		<div class="wrap">
+			<h1>Email Template Preview (v2.4)</h1>
+			<p>Select a template to preview with dummy data.</p>
+			
+			<div style="display: flex; gap: 20px;">
+				<div style="width: 250px; background: #fff; padding: 15px; border: 1px solid #ccd0d4; box-shadow: 0 1px 1px rgba(0,0,0,.04);">
+					<h3>Templates</h3>
+					<ul style="list-style: none; margin: 0; padding: 0;">
+						<?php 
+						$templates = ['client-confirmation', 'client-reminder', 'client-reschedule', 'client-cancellation', 'client-rejection', 'client-proposal'];
+						foreach($templates as $tpl): 
+						?>
+						<li style="margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #eee;">
+							<strong style="display:block; margin-bottom:5px; font-size: 13px;"><?php echo $tpl; ?></strong>
+							<div style="display: flex; gap: 5px;">
+								<a href="?page=osb-email-preview&template=<?php echo $tpl; ?>&lang=de&render_raw=1" target="preview_frame" class="button button-small">DE</a>
+								<a href="?page=osb-email-preview&template=<?php echo $tpl; ?>&lang=en&render_raw=1" target="preview_frame" class="button button-small">EN</a>
+							</div>
+						</li>
+						<?php endforeach; ?>
+					</ul>
+				</div>
+				<div style="flex: 1; background: #fff; border: 1px solid #ccd0d4; box-shadow: 0 1px 1px rgba(0,0,0,.04);">
+					<iframe name="preview_frame" style="width: 100%; height: 800px; border: 0;"></iframe>
+				</div>
+			</div>
+		</div>
+		<?php
 	}
 
 	public function display_logs_page() {

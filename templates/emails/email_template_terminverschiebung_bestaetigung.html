@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terminänderung - %DATE%</title>
+    <!-- Import Brand Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant:wght@300;400;600&family=Quicksand:wght@300;400;500&display=swap" rel="stylesheet">
+    
+    <style type="text/css">
+        /* RESET STYLES */
+        body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+        table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+        img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+        table { border-collapse: collapse !important; }
+        body { height: 100% !important; margin: 0 !important; padding: 0 !important; width: 100% !important; }
+
+        /* BRAND STYLES */
+        body {
+            font-family: 'Quicksand', Helvetica, Arial, sans-serif;
+            background-color: #fcf5ed; /* Cream Background */
+            color: #415565; /* Slate Text */
+        }
+        
+        h1, h2, h3 {
+            font-family: 'Cormorant', Georgia, 'Times New Roman', serif;
+            font-weight: 400;
+            color: #4e7f72; /* Ocean Green */
+            margin: 0;
+        }
+
+        /* UTILITIES */
+        .wrapper {
+            width: 100%;
+            table-layout: fixed;
+            background-color: #fcf5ed;
+            padding-bottom: 40px;
+        }
+
+        .main-container {
+            background-color: #ffffff;
+            margin: 0 auto;
+            width: 100%;
+            max-width: 600px;
+            border-spacing: 0;
+            font-family: 'Quicksand', Helvetica, Arial, sans-serif;
+            color: #415565;
+            border-radius: 8px; /* Rounded corners for the card */
+            overflow: hidden;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        }
+
+        .content-padding {
+            padding: 30px 40px;
+        }
+
+        /* LINKS */
+        a {
+            color: #4e7f72;
+            text-decoration: underline;
+        }
+        a:hover {
+            color: #2c4a40;
+        }
+
+        /* APPOINTMENT CARD */
+        .appt-card {
+            background-color: #f9fbfb;
+            border-left: 4px solid #4e7f72;
+            padding: 20px;
+            margin: 20px 0 20px 0; /* Adjusted margins */
+            border-radius: 0 4px 4px 0;
+        }
+        
+        /* OLD DATE STYLE - NEW DESIGN */
+        .previous-date-container {
+            margin-bottom: 30px;
+            padding-left: 24px; /* Align with text inside card */
+        }
+        
+        .previous-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #9aaebb;
+            font-weight: 600;
+            display: block;
+            margin-bottom: 4px;
+        }
+        
+        .previous-value {
+            font-size: 15px;
+            color: #7a8b99;
+            font-family: 'Quicksand', sans-serif;
+        }
+
+        /* MEDIA QUERIES */
+        @media screen and (max-width: 600px) {
+            .main-container { width: 100% !important; }
+            .content-padding { padding: 20px 20px !important; }
+            h1 { font-size: 24px !important; }
+        }
+    </style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #fcf5ed;">
+
+    <!-- HIDDEN PREHEADER -->
+    <div style="display: none; font-size: 1px; color: #fefefe; line-height: 1px; font-family: 'Quicksand', sans-serif; max-height: 0px; max-width: 0px; opacity: 0; overflow: hidden;">
+        Bestätigung deiner Terminänderung. Neuer Termin: APPOINTMENT.
+    </div>
+
+    <center class="wrapper" style="width: 100%; table-layout: fixed; background-color: #fcf5ed; padding-top: 40px; padding-bottom: 40px;">
+        
+        <table class="main-container" align="center" style="background-color: #ffffff; margin: 0 auto; width: 100%; max-width: 600px; border-radius: 8px; border-spacing: 0; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+            
+            <!-- HEADER LOGO SECTION -->
+            <tr>
+                <td align="center" style="padding: 30px 0 10px 0; background-color: #ffffff;">
+                    <img src="https://www.oceanshiatsu.at/wp-content/uploads/Ocean_Shiatsu_Logo_Secondary_Prime.png" width="200" alt="Ocean Shiatsu Logo" style="display: block; border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic;">
+                </td>
+            </tr>
+
+            <!-- MAIN HERO SECTION -->
+            <tr>
+                <td class="content-padding" style="padding: 20px 40px 30px 40px;">
+                    <h1 style="font-family: 'Cormorant', serif; font-size: 32px; color: #4e7f72; text-align: center; margin-bottom: 40px; font-weight: 300;">Terminänderung</h1>
+                    
+                    <p style="font-family: 'Quicksand', sans-serif; font-size: 16px; line-height: 1.6; color: #415565; margin-bottom: 20px;">
+                        Hallo FIRSTNAME IS EMPTY Hallo!
+                    </p>
+                    
+                    <p style="font-family: 'Quicksand', sans-serif; font-size: 16px; line-height: 1.6; color: #415565;">
+                        Gerne bestätige ich dir den neuen Termin wie folgt:
+                    </p>
+
+                    <!-- NEW APPOINTMENT CARD -->
+                    <div class="appt-card" style="background-color: #f4f8f7; border-left: 4px solid #4e7f72; padding: 20px; margin: 25px 0 20px 0; border-radius: 0 4px 4px 0;">
+                        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                                <td width="30" valign="top" style="padding-right: 10px;">
+                                    <span style="font-size: 20px;">📅</span>
+                                </td>
+                                <td>
+                                    <strong style="font-family: 'Quicksand', sans-serif; font-size: 18px; color: #4e7f72; display: block; margin-bottom: 5px;">
+                                        <!-- Linked APPOINTMENT to calendar add -->
+                                        <a href="TRANSFERLINK" style="color: #4e7f72; text-decoration: underline;">APPOINTMENT</a>
+                                    </strong>
+                                    <span style="font-family: 'Quicksand', sans-serif; font-size: 14px; color: #415565;">
+                                        Neuer Termin
+                                    </span>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <!-- PREVIOUS DATE INFO (Redesigned) -->
+                    <div class="previous-date-container" style="margin-bottom: 30px; padding-left: 5px;">
+                        <span class="previous-label" style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #9aaebb; font-weight: 600; display: block; margin-bottom: 4px;">Ursprünglicher Termin:</span>
+                        <span class="previous-value" style="font-size: 15px; color: #7a8b99; font-family: 'Quicksand', sans-serif;">PREVIOUSSTARTDATE</span>
+                    </div>
+
+                    <!-- ADDRESS SECTION (Kept for context) -->
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 20px; margin-bottom: 30px;">
+                        <tr>
+                            <td align="center" style="background-color: #fcf5ed; padding: 15px; border-radius: 8px;">
+                                <p style="font-family: 'Quicksand', sans-serif; font-size: 14px; line-height: 1.6; color: #415565; margin: 0;">
+                                    <strong>📍 Praxis Adresse:</strong><br>
+                                    Wasagasse 3, 1090 Wien<br>
+                                    <a href="https://g.page/ShiatsuPeterPodesva" style="color: #4e7f72; text-decoration: underline; font-weight: 500; margin-top: 5px; display: inline-block;">Auf Google Maps anzeigen</a>
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <p style="font-family: 'Quicksand', sans-serif; font-size: 16px; line-height: 1.6; color: #415565; margin-bottom: 30px;">
+                        Liebe Grüße,<br>
+                        <strong>Peter (Ocean Shiatsu)</strong>
+                    </p>
+
+                    <hr style="border: 0; border-top: 1px solid #e0e0e0; margin: 30px 0;">
+
+                    <!-- ACTION BUTTONS SECTION (Cancellation) -->
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                        <tr>
+                            <td align="center">
+                                <p style="font-family: 'Quicksand', sans-serif; font-size: 14px; color: #7a8b99; margin-bottom: 15px;">
+                                    Falls du diesen Termin doch stornieren möchtest:
+                                </p>
+                                
+                                <a href="CANCELLINK" style="background-color: transparent; border: 2px solid #7a8b99; color: #7a8b99; text-decoration: none; padding: 10px 25px; border-radius: 50px; font-weight: bold; text-transform: uppercase; font-size: 13px; display: inline-block;">
+                                    Termin stornieren
+                                </a>
+
+                                <!-- Policy Fine Print -->
+                                <p style="font-family: 'Quicksand', sans-serif; font-size: 12px; line-height: 1.4; color: #9aaebb; margin-top: 20px; max-width: 400px; margin-left: auto; margin-right: auto;">
+                                    <span style="display: inline-block; background-color: #f4f8f7; padding: 5px 10px; border-radius: 4px;">
+                                        ⓘ Stornierung bis 24h vor Terminbeginn möglich
+                                    </span>
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+
+                </td>
+            </tr>
+
+            <!-- FOOTER SECTION -->
+            <tr>
+                <td align="center" style="background-color: #415565; padding: 20px;">
+                    <p style="font-family: 'Quicksand', sans-serif; font-size: 12px; color: #ffffff; margin: 0; opacity: 0.8;">
+                        Ocean Shiatsu | Wasagasse 3, 1090 Wien
+                    </p>
+                    <p style="font-family: 'Quicksand', sans-serif; font-size: 12px; color: #ffffff; margin: 5px 0 0 0; opacity: 0.8;">
+                        <a href="tel:+436644210723" style="color: #ffffff; text-decoration: none;">Tel: +43 664 4210723</a>
+                    </p>
+                    <p style="font-family: 'Quicksand', sans-serif; font-size: 12px; color: #ffffff; margin: 10px 0 0 0; opacity: 0.5;">
+                        Referenzcode: REFERENCECODE
+                    </p>
+                </td>
+            </tr>
+
+        </table>
+    </center>
+</body>
+</html>

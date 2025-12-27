@@ -48,7 +48,14 @@ class Ocean_Shiatsu_Booking_API {
 		register_rest_route( 'osb/v1', '/gcal-webhook', array(
 			'methods'  => 'POST',
 			'callback' => array( $this, 'handle_webhook' ),
-			'permission_callback' => '__return_true', // Verified via token in header
+			'permission_callback' => '__return_true', // Verified by X-Goog headers
+		) );
+
+		// v2.4.1: ICS Calendar Download Endpoint
+		register_rest_route( 'osb/v1', '/calendar/(?P<token>[a-f0-9]+)', array(
+			'methods'  => 'GET',
+			'callback' => array( $this, 'serve_ics_calendar' ),
+			'permission_callback' => '__return_true', // Token protected
 		) );
 
 		register_rest_route( 'osb/v1', '/availability/month', array(
@@ -1158,5 +1165,63 @@ class Ocean_Shiatsu_Booking_API {
 			$settings[$row->setting_key] = $row->setting_value;
 		}
 		return $settings;
+	}
+
+	/**
+	 * v2.4.1: Serve ICS calendar file for appointment.
+	 * Endpoint: GET /osb/v1/calendar/{token}
+	 */
+	public function serve_ics_calendar( $request ) {
+		global $wpdb;
+		$token = sanitize_text_field( $request->get_param( 'token' ) );
+		
+		if ( empty( $token ) ) {
+			return new WP_Error( 'invalid_token', 'Token is required', array( 'status' => 400 ) );
+		}
+		
+		$booking = $wpdb->get_row( $wpdb->prepare(
+			"SELECT * FROM {$wpdb->prefix}osb_appointments WHERE token = %s",
+			$token
+		) );
+		
+		if ( ! $booking ) {
+			return new WP_Error( 'not_found', 'Booking not found', array( 'status' => 404 ) );
+		}
+		
+		// Get service name
+		$service = $wpdb->get_row( $wpdb->prepare(
+			"SELECT name FROM {$wpdb->prefix}osb_services WHERE id = %d",
+			$booking->service_id
+		) );
+		$service_name = $service ? $service->name : 'Shiatsu Session';
+		
+		// Generate ICS content
+		$start_ts = strtotime( $booking->start_time );
+		$end_ts = strtotime( $booking->end_time );
+		
+		$ics_content = "BEGIN:VCALENDAR\r\n";
+		$ics_content .= "VERSION:2.0\r\n";
+		$ics_content .= "PRODID:-//Ocean Shiatsu//Booking System//DE\r\n";
+		$ics_content .= "CALSCALE:GREGORIAN\r\n";
+		$ics_content .= "METHOD:PUBLISH\r\n";
+		$ics_content .= "BEGIN:VEVENT\r\n";
+		$ics_content .= "UID:" . $booking->token . "@oceanshiatsu.at\r\n";
+		$ics_content .= "DTSTART:" . date( 'Ymd\THis', $start_ts ) . "\r\n";
+		$ics_content .= "DTEND:" . date( 'Ymd\THis', $end_ts ) . "\r\n";
+		$ics_content .= "SUMMARY:Shiatsu - " . $service_name . "\r\n";
+		$ics_content .= "LOCATION:Wasagasse 3, 1090 Wien\r\n";
+		$ics_content .= "DESCRIPTION:Dein Termin bei Ocean Shiatsu. Bitte bring bequeme Kleidung mit.\r\n";
+		$ics_content .= "STATUS:CONFIRMED\r\n";
+		$ics_content .= "END:VEVENT\r\n";
+		$ics_content .= "END:VCALENDAR\r\n";
+		
+		// Set headers for ICS download
+		header( 'Content-Type: text/calendar; charset=utf-8' );
+		header( 'Content-Disposition: attachment; filename="termin-ocean-shiatsu.ics"' );
+		header( 'Content-Length: ' . strlen( $ics_content ) );
+		header( 'Cache-Control: no-cache, must-revalidate' );
+		
+		echo $ics_content;
+		exit;
 	}
 }
