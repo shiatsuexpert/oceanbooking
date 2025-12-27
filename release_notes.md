@@ -1,5 +1,13 @@
 # Release Notes
 
+## [v2.3.0] - 2025-12-27
+### Added
+- **Interactive Proposal Workflow (V3):** Clients can now click "Accept" or "Decline" in proposal emails.
+- **Proposal Acceptance:** Green "Terminvorschlag bestätigen" button confirms the booking after ensuring the slot is still available (Race Condition Guard).
+- **Decline/Reschedule:** "Änderung anfragen" button redirects clients to the Calendar to pick a new time easily.
+- **API:** Added logic to `respond_proposal` to validate slot availability before confirming.
+- **i18n:** Added translation labels for proposal buttons.
+
 ## [v2.2.5] - 2025-12-26
 ### Added
 - **AGB Toggle:** Added admin setting to show/hide the "Terms & Conditions" notice in the footer.

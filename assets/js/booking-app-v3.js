@@ -1290,7 +1290,12 @@ const osbV3 = {
 
     // --- Step 3: Form ---
     renderStep3Form(container) {
-        const title = this.el('h3', { className: 'text-center mb-4' }, this.getLabel('your_details'));
+        let titleKey = 'your_details';
+        // v2.3.0: Custom Title for Proposal
+        if (this.state.mode === 'proposal') {
+            titleKey = 'proposal_title';
+        }
+        const title = this.el('h3', { className: 'text-center mb-4' }, this.getLabel(titleKey));
         container.appendChild(title);
 
         // --- SECTION 1: Personal Details (Persönliche Angaben) ---
@@ -1634,11 +1639,25 @@ const osbV3 = {
             if (!canProceed) nextBtn.disabled = true;
             btnRow.appendChild(nextBtn);
         } else if (step === 3) {
-            const submitBtn = this.el('button', {
-                className: 'btn btn-nav btn-primary-os',
-                'data-action': 'submit-booking',
-            }, this.state.isWaitlist ? this.getLabel('btn_submit_waitlist') : this.getLabel('btn_submit'));
-            btnRow.appendChild(submitBtn);
+            // v2.3.0: Proposal Logic (Custom Button)
+            if (this.state.mode === 'proposal') {
+                const confirmBtn = this.el('button', {
+                    className: 'btn btn-nav btn-success-os', // Green for confirm
+                    'data-action': 'submit-booking', // Re-use submit handler but check mode
+                }, this.getLabel('btn_submit_proposal')); // "Termin bestätigen"
+                btnRow.appendChild(confirmBtn);
+            } else {
+                // Standard Booking / Reschedule
+                const label = this.state.mode === 'reschedule'
+                    ? this.getLabel('btn_submit_reschedule') // "Änderung anfragen"
+                    : (this.state.isWaitlist ? this.getLabel('btn_submit_waitlist') : this.getLabel('btn_submit'));
+
+                const submitBtn = this.el('button', {
+                    className: 'btn btn-nav btn-primary-os',
+                    'data-action': 'submit-booking',
+                }, label);
+                btnRow.appendChild(submitBtn);
+            }
         }
 
         footer.appendChild(btnRow);
@@ -1648,6 +1667,13 @@ const osbV3 = {
     // SUBMISSION
     // ========================================
     async submitBooking() {
+        // v2.3.0: Proposal Acceptance (Skip standard validation)
+        if (this.state.mode === 'proposal') {
+            this.showLoading();
+            await this.submitProposalAcceptance();
+            return;
+        }
+
         if (!this.validateCurrentStep()) return;
 
         // Go to Step 4 IMMEDIATELY to show spinner only (per prototype)
@@ -1745,6 +1771,115 @@ const osbV3 = {
             this.performCancellation(token);
         } else if (action === 'reschedule') {
             this.loadBookingForReschedule(token);
+        } else if (action === 'accept_proposal') {
+            // v2.3.0: Accept Proposal
+            this.handleProposal('accept', token);
+        } else if (action === 'decline_proposal') {
+            // v2.3.0: Decline Proposal -> Reschedule
+            // We treat decline exactly like reschedule, but maybe show a specific message?
+            this.handleProposal('decline', token);
+        }
+    },
+
+    // v2.3.0: Handle Interactive Proposal
+    async handleProposal(type, token) {
+        if (type === 'decline') {
+            // "Decline" implies they want to pick a new time -> Reschedule Mode
+            alert('Um einen neuen Termin zu wählen, werden Sie zum Kalender weitergeleitet.'); // Simple hint
+            this.loadBookingForReschedule(token);
+            return;
+        }
+
+        // Accept Flow
+        this.showLoading();
+        try {
+            const response = await fetch(`${this.state.config.apiUrl}booking-by-token?token=${token}`, {
+                headers: { 'X-WP-Nonce': this.state.config.nonce },
+            });
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Booking not found');
+            }
+
+            // Verify it has proposed times
+            if (!data.proposed_start_time) {
+                alert('Kein offener Terminvorschlag gefunden.');
+                window.location.href = this.state.config.bookingPageUrl;
+                return;
+            }
+
+            // Set Mode & Data
+            this.state.mode = 'proposal';
+            this.state.originalBooking = data;
+            this.state.token = token; // Store token for submission
+
+            // Set Proposed Data as Selected Data (to render summary correctly)
+            // Summary uses selectedService, selectedDate, selectedTime
+            this.state.selectedService = this.services.find(s => s.id === parseInt(data.service_id));
+
+            // Parse Proposed Time
+            const dateObj = new Date(data.proposed_start_time);
+            this.state.selectedDate = data.proposed_start_time.split(' ')[0]; // YYYY-MM-DD
+            this.state.selectedTime = data.proposed_start_time.split(' ')[1].substring(0, 5); // HH:MM
+
+            // Pre-fill contact data (read-only in summary usually)
+            this.state.formData = {
+                salutation: data.client_salutation || 'n',
+                firstName: data.client_first_name || '',
+                lastName: data.client_last_name || '',
+                email: data.client_email || '',
+                phone: data.client_phone || '',
+                notes: data.client_notes || '',
+                newsletter: false,
+            };
+
+            // Go straight to Step 3 (Summary)
+            this.goToStep(3);
+
+        } catch (err) {
+            console.error('Proposal Load Error:', err);
+            this.showError('Fehler beim Laden des Vorschlags.');
+        } finally {
+            this.hideLoading();
+        }
+    },
+
+    async submitProposalAcceptance() {
+        try {
+            const response = await fetch(`${this.state.config.apiUrl}respond-proposal`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': this.state.config.nonce,
+                },
+                body: JSON.stringify({
+                    token: this.state.token,
+                    response: 'accept'
+                }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                this.showSuccessScreen();
+            } else {
+                // Handle Race Condition (409) or other errors
+                this.showError(data.message || 'Fehler beim Bestätigen.');
+                // If 409, maybe offer to reschedule?
+                if (response.status === 409) {
+                    setTimeout(() => {
+                        if (confirm('Möchten Sie stattdessen einen anderen Termin wählen?')) {
+                            this.loadBookingForReschedule(this.state.token);
+                        }
+                    }, 2000);
+                }
+            }
+        } catch (err) {
+            this.showError('Netzwerkfehler.');
+        } finally {
+            this.state.submitting = false;
+            this.hideLoading();
         }
     },
 

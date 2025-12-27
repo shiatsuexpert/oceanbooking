@@ -79,6 +79,11 @@ class Ocean_Shiatsu_Booking_i18n {
 		pll_register_string( 'btn_submit_waitlist', 'Warteliste eintragen', $context );
 		pll_register_string( 'btn_new_booking', 'Neue Buchung', $context );
 		pll_register_string( 'btn_back_home', 'Zurück zur Startseite', $context );
+		
+		// v2.3.0 Interactive Proposal
+		pll_register_string( 'btn_submit_reschedule', 'Änderung anfragen', $context );
+		pll_register_string( 'btn_submit_proposal', 'Termin bestätigen', $context );
+		pll_register_string( 'proposal_title', 'Terminvorschlag bestätigen', $context );
 
 		// Confirmation
 		pll_register_string( 'confirmation_title', 'Vielen Dank!', $context );
@@ -187,6 +192,9 @@ class Ocean_Shiatsu_Booking_i18n {
 			'btn_submit_waitlist'  => self::get_string( 'btn_submit_waitlist', 'Warteliste eintragen' ),
 			'btn_new_booking'      => self::get_string( 'btn_new_booking', 'Neue Buchung' ),
 			'btn_back_home'        => self::get_string( 'btn_back_home', 'Zurück zur Startseite' ),
+			'btn_submit_reschedule'=> self::get_string( 'btn_submit_reschedule', 'Änderung anfragen' ),
+			'btn_submit_proposal'  => self::get_string( 'btn_submit_proposal', 'Termin bestätigen' ),
+			'proposal_title'       => self::get_string( 'proposal_title', 'Terminvorschlag bestätigen' ),
 			
 			// Confirmation
 			'confirmation_title'   => self::get_string( 'confirmation_title', 'Vielen Dank!' ),

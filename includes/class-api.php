@@ -87,6 +87,26 @@ class Ocean_Shiatsu_Booking_API {
 		if ( ! $booking ) return new WP_Error( 'invalid_token', 'Invalid token', array( 'status' => 403 ) );
 
 		if ( $response === 'accept' ) {
+			// v2.3.0 SECURITY: Availability Check (Race Condition Guard)
+			// Ensure the proposed slot is still free before confirming
+			
+			$date = date( 'Y-m-d', strtotime( $booking->proposed_start_time ) );
+			$time = date( 'H:i', strtotime( $booking->proposed_start_time ) );
+			$service_id = $booking->service_id;
+
+			$gcal = new Ocean_Shiatsu_Booking_Google_Calendar();
+			$clustering = new Ocean_Shiatsu_Booking_Clustering();
+			
+			// Force Live Fetch (true for skip_cache) to ensure real-time accuracy
+			$day_events = $gcal->get_events_for_date( $date, true ); 
+			$available_slots = $clustering->get_available_slots( $date, $service_id, $day_events );
+
+			if ( ! in_array( $time, $available_slots ) ) {
+				Ocean_Shiatsu_Booking_Logger::log( 'WARNING', 'API', 'Proposal Acceptance Blocked: Slot taken', ['time' => $time] );
+				return new WP_Error( 'conflict', 'Dieser Termin ist leider nicht mehr verfügbar (wurde zwischenzeitlich vergeben).', array( 'status' => 409 ) );
+			}
+
+			// Proceed with Update
 			$wpdb->update( 
 				$table_name, 
 				[
@@ -99,12 +119,8 @@ class Ocean_Shiatsu_Booking_API {
 				['id' => $booking->id] 
 			);
 			
-			// Update GCal? (Delete old, create new logic or just let sync handle it)
-			// For robustness, let's delete the old event ID so sync creates a new one or we create one.
-			// Update GCal
+			// Updates GCal Event if exists
 			if ( $booking->gcal_event_id ) {
-				$gcal = new Ocean_Shiatsu_Booking_Google_Calendar();
-				
 				// Calculate Duration
 				$start_ts = strtotime( $booking->proposed_start_time );
 				$end_ts = strtotime( $booking->proposed_end_time );
@@ -117,17 +133,26 @@ class Ocean_Shiatsu_Booking_API {
 				set_transient( 'osb_ignore_sync_' . $booking->id, true, 60 );
 
 				$gcal->update_event_time( $booking->gcal_event_id, $new_date, $new_time, $duration );
+				// Also explicit status confirm in case it was pending
+				$gcal->update_event_status( $booking->gcal_event_id, 'confirmed' );
 			}
 
 			// Notify Admin
 			$emails = new Ocean_Shiatsu_Booking_Emails();
 			$emails->send_admin_proposal_accepted( $booking->id );
+			
+			// Notify Client (Confirmation)
+			$emails->send_client_confirmation( $booking->id );
+
 		} else {
 			// Decline
+			// Just clear the proposed times and notify admin. 
+			// Status remains as is (likely pending/reschedule_requested) or reverts to pending?
+			// Ideally logic flows to Reschedule UI, so backend just acknowledges the rejection of the proposal.
 			$wpdb->update( 
 				$table_name, 
 				[
-					'status' => 'pending', // Revert to pending? Or 'rejected'? Let's say pending so Admin sees it again.
+					'status' => 'pending', 
 					'proposed_start_time' => NULL,
 					'proposed_end_time' => NULL
 				], 
